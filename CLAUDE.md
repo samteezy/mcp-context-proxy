@@ -27,11 +27,11 @@ MCP Client → MCPith (Proxy) → MCP Server(s)
 ```
 
 MCPith acts as a man-in-the-middle:
-- **Downstream:** Exposes MCP server interface to clients (Claude Desktop, Cursor, etc.) and/or an OpenAPI endpoint similar to `mcpo`.
+- **Downstream:** Exposes MCP server interface to clients (Claude Desktop, Cursor, etc.)
 - **Upstream:** Connects as MCP client to one or more actual MCP servers
 - **Compression:** Intercepts tool responses exceeding token threshold and compresses via external LLM
 
-### Key Components
+### Key Components May Include
 
 - `src/proxy.ts` - Main proxy orchestration
 - `src/mcp/server.ts` - Downstream MCP server implementation
@@ -58,7 +58,7 @@ Three strategies auto-selected based on content:
 - `@modelcontextprotocol/sdk` - MCP implementation
 - `@ai` - LLM API client (Vercel)
 - `ai-tokenizer` - Token counting
-- `winson` - Logging
+- `winston` - Logging
 - `vitest` - Testing
 - `tsup` - Build
 
