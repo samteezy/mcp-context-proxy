@@ -1,0 +1,51 @@
+{
+  "name": "mcpith",
+  "version": "0.1.0",
+  "description": "Transparent MCP proxy that compresses large tool responses for resource-constrained local models",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "mcpith": "dist/cli.js"
+  },
+  "scripts": {
+    "dev": "tsx watch src/cli.ts",
+    "build": "tsup",
+    "start": "node dist/cli.js",
+    "test": "vitest",
+    "test:coverage": "vitest --coverage",
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "mcp",
+    "proxy",
+    "compression",
+    "llm",
+    "context"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "@ai-sdk/openai-compatible": "^0.2.14",
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "ai": "^4.3.16",
+    "gpt-tokenizer": "^3.4.0",
+    "express": "^4.21.2",
+    "winston": "^3.17.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.5",
+    "@typescript-eslint/eslint-plugin": "^8.19.1",
+    "@typescript-eslint/parser": "^8.19.1",
+    "@vitest/coverage-v8": "^2.1.8",
+    "eslint": "^9.17.0",
+    "tsup": "^8.3.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

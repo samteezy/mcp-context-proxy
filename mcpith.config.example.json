@@ -1,0 +1,35 @@
+{
+  "downstream": {
+    "transport": "stdio"
+  },
+  "upstreams": [
+    {
+      "id": "filesystem",
+      "name": "Filesystem Server",
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
+      "enabled": true
+    },
+    {
+      "id": "everything",
+      "name": "Everything Server (Demo)",
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-everything"],
+      "enabled": true
+    }
+  ],
+  "compression": {
+    "baseUrl": "http://10.10.3.197:8080/v1",
+    "model": "LFM2-1.2B",
+    "tokenThreshold": 1000,
+    "maxOutputTokens": 500
+  },
+  "cache": {
+    "enabled": true,
+    "ttlSeconds": 300,
+    "maxEntries": 1000
+  },
+  "logLevel": "info"
+}
