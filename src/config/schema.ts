@@ -9,7 +9,7 @@ export const upstreamServerSchema = z
     transport: transportSchema,
     command: z.string().optional(),
     args: z.array(z.string()).optional(),
-    env: z.record(z.string()).optional(),
+    env: z.record(z.string(), z.string()).optional(),
     url: z.string().url().optional(),
     enabled: z.boolean().default(true),
   })
@@ -47,7 +47,7 @@ export const compressionSchema = z.object({
     enabled: true,
     tokenThreshold: 1000,
   }),
-  toolPolicies: z.record(compressionPolicySchema).optional(),
+  toolPolicies: z.record(z.string(), compressionPolicySchema).optional(),
   goalAware: z.boolean().default(true),
 });
 
@@ -103,7 +103,7 @@ export const maskingPolicySchema = z.object({
   piiTypes: z.array(piiTypeSchema).optional(),
   llmFallback: z.boolean().optional(),
   llmFallbackThreshold: patternConfidenceSchema.optional(),
-  customPatterns: z.record(customPatternDefSchema).optional(),
+  customPatterns: z.record(z.string(), customPatternDefSchema).optional(),
 });
 
 export const maskingDefaultPolicySchema = z.object({
@@ -113,7 +113,7 @@ export const maskingDefaultPolicySchema = z.object({
     .default(["email", "ssn", "phone", "credit_card", "ip_address"]),
   llmFallback: z.boolean().default(false),
   llmFallbackThreshold: patternConfidenceSchema.default("low"),
-  customPatterns: z.record(customPatternDefSchema).optional(),
+  customPatterns: z.record(z.string(), customPatternDefSchema).optional(),
 });
 
 export const maskingLlmConfigSchema = z.object({
@@ -130,7 +130,7 @@ export const maskingSchema = z.object({
     llmFallback: false,
     llmFallbackThreshold: "low",
   }),
-  toolPolicies: z.record(maskingPolicySchema).optional(),
+  toolPolicies: z.record(z.string(), maskingPolicySchema).optional(),
   llmConfig: maskingLlmConfigSchema.optional(),
 });
 

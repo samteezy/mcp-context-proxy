@@ -1,6 +1,7 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { generateText } from "ai";
-import { encode } from "gpt-tokenizer";
+import { Tokenizer } from "ai-tokenizer";
+import * as o200k_base from "ai-tokenizer/encoding/o200k_base";
 import type {
   CallToolResult,
   ReadResourceResult,
@@ -17,6 +18,7 @@ import { getLogger } from "../logger.js";
 export class Compressor {
   private config: CompressionConfig;
   private provider: ReturnType<typeof createOpenAICompatible>;
+  private tokenizer: Tokenizer;
 
   constructor(config: CompressionConfig) {
     this.config = config;
@@ -25,6 +27,7 @@ export class Compressor {
       apiKey: config.apiKey || "not-needed",
       baseURL: config.baseUrl,
     });
+    this.tokenizer = new Tokenizer(o200k_base);
   }
 
   /**
@@ -63,7 +66,7 @@ export class Compressor {
    * Count tokens in a string
    */
   countTokens(text: string): number {
-    return encode(text).length;
+    return this.tokenizer.count(text);
   }
 
   /**
