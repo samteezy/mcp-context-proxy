@@ -96,11 +96,13 @@ export const customPatternDefSchema = z.object({
   replacement: z.string(),
 });
 
+export const patternConfidenceSchema = z.enum(["low", "medium", "high"]);
+
 export const maskingPolicySchema = z.object({
   enabled: z.boolean().optional(),
   piiTypes: z.array(piiTypeSchema).optional(),
   llmFallback: z.boolean().optional(),
-  llmFallbackThreshold: z.number().min(0).max(1).optional(),
+  llmFallbackThreshold: patternConfidenceSchema.optional(),
   customPatterns: z.record(customPatternDefSchema).optional(),
 });
 
@@ -110,7 +112,7 @@ export const maskingDefaultPolicySchema = z.object({
     .array(piiTypeSchema)
     .default(["email", "ssn", "phone", "credit_card", "ip_address"]),
   llmFallback: z.boolean().default(false),
-  llmFallbackThreshold: z.number().min(0).max(1).default(0.7),
+  llmFallbackThreshold: patternConfidenceSchema.default("low"),
   customPatterns: z.record(customPatternDefSchema).optional(),
 });
 
@@ -126,7 +128,7 @@ export const maskingSchema = z.object({
     enabled: true,
     piiTypes: ["email", "ssn", "phone", "credit_card", "ip_address"],
     llmFallback: false,
-    llmFallbackThreshold: 0.7,
+    llmFallbackThreshold: "low",
   }),
   toolPolicies: z.record(maskingPolicySchema).optional(),
   llmConfig: maskingLlmConfigSchema.optional(),

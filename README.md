@@ -211,7 +211,7 @@ Client receives: original values restored
 | `enabled` | `boolean` | Enable/disable masking for this tool |
 | `piiTypes` | `string[]` | PII types to mask (see below) |
 | `llmFallback` | `boolean` | Use LLM for ambiguous cases |
-| `llmFallbackThreshold` | `number` | Confidence threshold (0-1) to trigger LLM |
+| `llmFallbackThreshold` | `"low" \| "medium" \| "high"` | Trigger LLM for patterns at or below this confidence |
 | `customPatterns` | `object` | Custom regex patterns |
 
 #### Supported PII Types
@@ -237,7 +237,7 @@ Client receives: original values restored
       "enabled": true,
       "piiTypes": ["email", "ssn", "phone", "credit_card", "ip_address"],
       "llmFallback": false,
-      "llmFallbackThreshold": 0.7
+      "llmFallbackThreshold": "low"
     },
     "toolPolicies": {
       "my-server__internal_tool": {

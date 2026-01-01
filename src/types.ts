@@ -20,6 +20,14 @@ export type PIIType =
   | "custom";
 
 /**
+ * Confidence level for PII pattern matches
+ * - high: Very reliable, unlikely to false positive
+ * - medium: Reliable, some edge cases possible
+ * - low: Ambiguous, benefits from LLM verification
+ */
+export type PatternConfidence = "low" | "medium" | "high";
+
+/**
  * Custom pattern definition for PII masking
  */
 export interface CustomPatternDef {
@@ -39,8 +47,8 @@ export interface MaskingPolicy {
   piiTypes?: PIIType[];
   /** Whether to use LLM fallback for ambiguous cases */
   llmFallback?: boolean;
-  /** Confidence threshold for regex match (0-1). Below this, trigger LLM fallback */
-  llmFallbackThreshold?: number;
+  /** Trigger LLM fallback for patterns at or below this confidence level */
+  llmFallbackThreshold?: PatternConfidence;
   /** Custom regex patterns */
   customPatterns?: Record<string, CustomPatternDef>;
 }
@@ -52,7 +60,7 @@ export interface ResolvedMaskingPolicy {
   enabled: boolean;
   piiTypes: PIIType[];
   llmFallback: boolean;
-  llmFallbackThreshold: number;
+  llmFallbackThreshold: PatternConfidence;
   customPatterns: Record<string, CustomPatternDef>;
 }
 

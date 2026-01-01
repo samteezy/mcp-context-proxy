@@ -4,6 +4,7 @@ import type {
   MaskedField,
   ResolvedMaskingPolicy,
   PIIType,
+  PatternConfidence,
 } from "../types.js";
 import {
   getPatternsForTypes,
@@ -21,6 +22,35 @@ const DEFAULT_PII_TYPES: PIIType[] = [
   "credit_card",
   "ip_address",
 ];
+
+/**
+ * Confidence level ordering (higher index = higher confidence)
+ */
+const CONFIDENCE_ORDER: PatternConfidence[] = ["low", "medium", "high"];
+
+/**
+ * Check if confidence is at or below the threshold (should trigger LLM fallback)
+ */
+function shouldTriggerLlmFallback(
+  confidence: PatternConfidence,
+  threshold: PatternConfidence
+): boolean {
+  const confIndex = CONFIDENCE_ORDER.indexOf(confidence);
+  const threshIndex = CONFIDENCE_ORDER.indexOf(threshold);
+  return confIndex <= threshIndex;
+}
+
+/**
+ * Get the lower of two confidence levels
+ */
+function minConfidence(
+  a: PatternConfidence,
+  b: PatternConfidence
+): PatternConfidence {
+  const aIndex = CONFIDENCE_ORDER.indexOf(a);
+  const bIndex = CONFIDENCE_ORDER.indexOf(b);
+  return aIndex <= bIndex ? a : b;
+}
 
 /**
  * Map PII type to placeholder prefix
@@ -82,7 +112,7 @@ export class Masker {
       enabled: defaultPolicy.enabled,
       piiTypes: defaultPolicy.piiTypes ?? DEFAULT_PII_TYPES,
       llmFallback: defaultPolicy.llmFallback ?? false,
-      llmFallbackThreshold: defaultPolicy.llmFallbackThreshold ?? 0.7,
+      llmFallbackThreshold: defaultPolicy.llmFallbackThreshold ?? "low",
       customPatterns: defaultPolicy.customPatterns ?? {},
     };
 
@@ -246,7 +276,7 @@ export class Masker {
     }
 
     let result = text;
-    let minConfidence = 1.0;
+    let lowestConfidence: PatternConfidence = "high";
     const matchedTypes = new Set<PIIType>();
 
     // Apply regex patterns with numbered placeholders
@@ -267,22 +297,20 @@ export class Masker {
 
         matchedTypes.add(pattern.type);
 
-        // Track minimum confidence for LLM fallback decision
-        if (pattern.confidence < minConfidence) {
-          minConfidence = pattern.confidence;
-        }
+        // Track lowest confidence for LLM fallback decision
+        lowestConfidence = minConfidence(lowestConfidence, pattern.confidence);
       }
     }
 
-    // Check if LLM fallback is needed
+    // Check if LLM fallback is needed (trigger if any pattern confidence <= threshold)
     const needsLlmFallback =
       policy.llmFallback &&
       this.llmDetector &&
-      minConfidence < policy.llmFallbackThreshold;
+      shouldTriggerLlmFallback(lowestConfidence, policy.llmFallbackThreshold);
 
     if (needsLlmFallback && this.llmDetector) {
       logger.debug(
-        `Low confidence (${minConfidence.toFixed(2)}) for '${path}', using LLM fallback`
+        `${lowestConfidence} confidence for '${path}', using LLM fallback`
       );
 
       try {
