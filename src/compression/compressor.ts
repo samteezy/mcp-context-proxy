@@ -12,16 +12,19 @@ import type {
   CompressionResult,
   ResolvedCompressionPolicy,
 } from "../types.js";
+import type { ToolConfigResolver } from "../config/tool-resolver.js";
 import { detectStrategy, getCompressionPrompt } from "./strategy.js";
 import { getLogger } from "../logger.js";
 
 export class Compressor {
   private config: CompressionConfig;
+  private resolver: ToolConfigResolver;
   private provider: ReturnType<typeof createOpenAICompatible>;
   private tokenizer: Tokenizer;
 
-  constructor(config: CompressionConfig) {
+  constructor(config: CompressionConfig, resolver: ToolConfigResolver) {
     this.config = config;
+    this.resolver = resolver;
     this.provider = createOpenAICompatible({
       name: "compression-provider",
       apiKey: config.apiKey || "not-needed",
@@ -31,36 +34,11 @@ export class Compressor {
   }
 
   /**
-   * Resolve the compression policy for a specific tool
-   * Tool-specific settings override defaults
+   * Resolve the compression policy for a specific tool.
+   * Delegates to ToolConfigResolver for upstream-aware resolution.
    */
   resolvePolicy(toolName?: string): ResolvedCompressionPolicy {
-    const defaultPolicy = this.config.defaultPolicy;
-
-    if (!toolName || !this.config.toolPolicies) {
-      return {
-        enabled: defaultPolicy.enabled,
-        tokenThreshold: defaultPolicy.tokenThreshold,
-        maxOutputTokens: defaultPolicy.maxOutputTokens,
-      };
-    }
-
-    const toolPolicy = this.config.toolPolicies[toolName];
-    if (!toolPolicy) {
-      return {
-        enabled: defaultPolicy.enabled,
-        tokenThreshold: defaultPolicy.tokenThreshold,
-        maxOutputTokens: defaultPolicy.maxOutputTokens,
-      };
-    }
-
-    // Merge: tool policy overrides default
-    return {
-      enabled: toolPolicy.enabled ?? defaultPolicy.enabled,
-      tokenThreshold: toolPolicy.tokenThreshold ?? defaultPolicy.tokenThreshold,
-      maxOutputTokens: toolPolicy.maxOutputTokens ?? defaultPolicy.maxOutputTokens,
-      customInstructions: toolPolicy.customInstructions,
-    };
+    return this.resolver.resolveCompressionPolicy(toolName);
   }
 
   /**

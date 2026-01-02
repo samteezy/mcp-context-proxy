@@ -4,6 +4,7 @@ import { UpstreamClient, DownstreamServer, Aggregator, Router } from "./mcp/inde
 import { Compressor } from "./compression/index.js";
 import { Masker } from "./masking/index.js";
 import { MemoryCache } from "./cache/index.js";
+import { ToolConfigResolver } from "./config/index.js";
 import { initLogger } from "./logger.js";
 
 export interface MCPithProxy {
@@ -19,21 +20,21 @@ export async function createProxy(config: MCPithConfig): Promise<MCPithProxy> {
   const logger = initLogger(config.logLevel);
   logger.info("Initializing MCPith proxy");
 
+  // Create tool config resolver for centralized policy lookups
+  const resolver = new ToolConfigResolver(config);
+
   // Create core components
-  const aggregator = new Aggregator({
-    toolsConfig: config.tools,
-    compressionConfig: config.compression,
-  });
+  const aggregator = new Aggregator({ resolver });
+  const compressor = new Compressor(config.compression, resolver);
 
   // Create masker if configured
   let masker: Masker | undefined;
   if (config.masking?.enabled) {
-    masker = new Masker(config.masking);
+    masker = new Masker(config.masking, resolver);
     logger.info("PII masking enabled");
   }
 
   const router = new Router(aggregator, masker);
-  const compressor = new Compressor(config.compression);
   const cache = new MemoryCache(config.cache);
 
   // Create upstream clients

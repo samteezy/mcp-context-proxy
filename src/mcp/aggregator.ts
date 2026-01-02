@@ -4,15 +4,12 @@ import type {
   AggregatedTool,
   AggregatedResource,
   AggregatedPrompt,
-  ToolsConfig,
-  CompressionConfig,
 } from "../types.js";
-import { matchesAnyGlob } from "../utils/index.js";
+import type { ToolConfigResolver } from "../config/tool-resolver.js";
 import { getLogger } from "../logger.js";
 
 export interface AggregatorOptions {
-  toolsConfig?: ToolsConfig;
-  compressionConfig?: CompressionConfig;
+  resolver: ToolConfigResolver;
 }
 
 /**
@@ -21,8 +18,7 @@ export interface AggregatorOptions {
  */
 export class Aggregator {
   private clients: Map<string, UpstreamClient> = new Map();
-  private hiddenPatterns: string[];
-  private compressionConfig?: CompressionConfig;
+  private resolver: ToolConfigResolver;
 
   // Caches for aggregated items
   private toolsCache: AggregatedTool[] = [];
@@ -30,9 +26,8 @@ export class Aggregator {
   private promptsCache: AggregatedPrompt[] = [];
   private cacheValid = false;
 
-  constructor(options: AggregatorOptions = {}) {
-    this.hiddenPatterns = options.toolsConfig?.hidden || [];
-    this.compressionConfig = options.compressionConfig;
+  constructor(options: AggregatorOptions) {
+    this.resolver = options.resolver;
   }
 
   /**
@@ -62,8 +57,7 @@ export class Aggregator {
    * Check if a tool is hidden
    */
   isToolHidden(namespacedName: string): boolean {
-    if (this.hiddenPatterns.length === 0) return false;
-    return matchesAnyGlob(namespacedName, this.hiddenPatterns);
+    return this.resolver.isToolHidden(namespacedName);
   }
 
   /**
@@ -153,13 +147,7 @@ export class Aggregator {
    * Check if goal-aware compression is enabled for a specific tool
    */
   private isGoalAwareEnabled(toolName: string): boolean {
-    // Check per-tool override first
-    const toolPolicy = this.compressionConfig?.toolPolicies?.[toolName];
-    if (toolPolicy?.goalAware !== undefined) {
-      return toolPolicy.goalAware;
-    }
-    // Fall back to global setting (default: true)
-    return this.compressionConfig?.goalAware ?? true;
+    return this.resolver.isGoalAwareEnabled(toolName);
   }
 
   /**

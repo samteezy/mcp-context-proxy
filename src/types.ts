@@ -84,8 +84,6 @@ export interface MaskingConfig {
   enabled: boolean;
   /** Default policy applied to all tools */
   defaultPolicy: MaskingPolicy & { enabled: boolean };
-  /** Per-tool policy overrides (key is namespaced tool name) */
-  toolPolicies?: Record<string, MaskingPolicy>;
   /** LLM config for fallback detection (optional) */
   llmConfig?: MaskingLLMConfig;
 }
@@ -119,6 +117,18 @@ export interface MaskingResult {
 }
 
 /**
+ * Per-tool configuration nested within upstream server
+ */
+export interface ToolConfig {
+  /** Hide this tool from clients */
+  hidden?: boolean;
+  /** Compression settings (overrides global defaultPolicy) */
+  compression?: CompressionPolicy;
+  /** Masking settings (overrides global defaultPolicy) */
+  masking?: MaskingPolicy;
+}
+
+/**
  * Configuration for an upstream MCP server
  */
 export interface UpstreamServerConfig {
@@ -138,6 +148,8 @@ export interface UpstreamServerConfig {
   url?: string;
   /** Optional: disable this server */
   enabled?: boolean;
+  /** Tool-specific configs keyed by original tool name */
+  tools?: Record<string, ToolConfig>;
 }
 
 /**
@@ -168,8 +180,6 @@ export interface CompressionConfig {
   model: string;
   /** Default policy applied to all tools */
   defaultPolicy: CompressionPolicy & { enabled: boolean; tokenThreshold: number };
-  /** Per-tool policy overrides (key is namespaced tool name, e.g. "upstream__tool") */
-  toolPolicies?: Record<string, CompressionPolicy>;
   /** Enable goal-aware compression globally (adds _mcpith_goal to tool schemas). Default: true */
   goalAware?: boolean;
 }
@@ -210,17 +220,6 @@ export interface CacheConfig {
 }
 
 /**
- * Tool filtering configuration
- */
-export interface ToolsConfig {
-  /**
-   * Tools to hide from clients (not exposed in tools/list, calls rejected).
-   * Supports exact names ("server__tool") or glob patterns ("server__*", "*__dangerous_*")
-   */
-  hidden?: string[];
-}
-
-/**
  * Main MCPith configuration
  */
 export interface MCPithConfig {
@@ -232,8 +231,6 @@ export interface MCPithConfig {
   compression: CompressionConfig;
   /** Cache configuration */
   cache: CacheConfig;
-  /** Tool filtering configuration */
-  tools?: ToolsConfig;
   /** PII masking configuration */
   masking?: MaskingConfig;
   /** Log level */

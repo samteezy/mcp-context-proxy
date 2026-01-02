@@ -9,15 +9,29 @@
       "transport": "stdio",
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
-      "enabled": true
+      "enabled": true,
+      "tools": {
+        "read_file": {
+          "compression": { "enabled": false }
+        }
+      }
     },
     {
-        "id": "fetch",
-        "name": "Fetch",
-        "transport": "stdio",
-        "command": "uvx",
-        "args": ["mcp-server-fetch"],
-        "enabled": true
+      "id": "fetch",
+      "name": "Fetch",
+      "transport": "stdio",
+      "command": "uvx",
+      "args": ["mcp-server-fetch"],
+      "enabled": true,
+      "tools": {
+        "fetch": {
+          "compression": {
+            "tokenThreshold": 500,
+            "maxOutputTokens": 200,
+            "customInstructions": "Preserve all URLs, dates, and code examples verbatim."
+          }
+        }
+      }
     }
   ],
   "compression": {
@@ -27,28 +41,12 @@
       "enabled": true,
       "tokenThreshold": 1000,
       "maxOutputTokens": 500
-    },
-    "toolPolicies": {
-      "filesystem__read_file": {
-        "enabled": false
-      },
-      "fetch__fetch": {
-        "tokenThreshold": 500,
-        "maxOutputTokens": 200,
-        "customInstructions": "Preserve all URLs, dates, and code examples verbatim."
-      }
     }
   },
   "cache": {
     "enabled": true,
     "ttlSeconds": 300,
     "maxEntries": 1000
-  },
-  "tools": {
-    "hidden": [
-      "everything__echo",
-      "everything__longRunningOperation"
-    ]
   },
   "logLevel": "info"
 }

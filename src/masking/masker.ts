@@ -6,6 +6,7 @@ import type {
   PIIType,
   PatternConfidence,
 } from "../types.js";
+import type { ToolConfigResolver } from "../config/tool-resolver.js";
 import {
   getPatternsForTypes,
   createCustomPattern,
@@ -14,14 +15,6 @@ import {
 } from "./patterns.js";
 import { LLMDetector } from "./llm-detector.js";
 import { getLogger } from "../logger.js";
-
-const DEFAULT_PII_TYPES: PIIType[] = [
-  "email",
-  "ssn",
-  "phone",
-  "credit_card",
-  "ip_address",
-];
 
 /**
  * Confidence level ordering (higher index = higher confidence)
@@ -84,10 +77,12 @@ interface MaskingContext {
  */
 export class Masker {
   private config: MaskingConfig;
+  private resolver: ToolConfigResolver;
   private llmDetector: LLMDetector | null = null;
 
-  constructor(config: MaskingConfig) {
+  constructor(config: MaskingConfig, resolver: ToolConfigResolver) {
     this.config = config;
+    this.resolver = resolver;
 
     // Initialize LLM detector if configured
     if (config.llmConfig) {
@@ -103,40 +98,11 @@ export class Masker {
   }
 
   /**
-   * Resolve the masking policy for a specific tool
+   * Resolve the masking policy for a specific tool.
+   * Delegates to ToolConfigResolver for upstream-aware resolution.
    */
   resolvePolicy(toolName?: string): ResolvedMaskingPolicy {
-    const defaultPolicy = this.config.defaultPolicy;
-
-    const basePolicy: ResolvedMaskingPolicy = {
-      enabled: defaultPolicy.enabled,
-      piiTypes: defaultPolicy.piiTypes ?? DEFAULT_PII_TYPES,
-      llmFallback: defaultPolicy.llmFallback ?? false,
-      llmFallbackThreshold: defaultPolicy.llmFallbackThreshold ?? "low",
-      customPatterns: defaultPolicy.customPatterns ?? {},
-    };
-
-    if (!toolName || !this.config.toolPolicies) {
-      return basePolicy;
-    }
-
-    const toolPolicy = this.config.toolPolicies[toolName];
-    if (!toolPolicy) {
-      return basePolicy;
-    }
-
-    // Merge: tool policy overrides default
-    return {
-      enabled: toolPolicy.enabled ?? basePolicy.enabled,
-      piiTypes: toolPolicy.piiTypes ?? basePolicy.piiTypes,
-      llmFallback: toolPolicy.llmFallback ?? basePolicy.llmFallback,
-      llmFallbackThreshold:
-        toolPolicy.llmFallbackThreshold ?? basePolicy.llmFallbackThreshold,
-      customPatterns: {
-        ...basePolicy.customPatterns,
-        ...(toolPolicy.customPatterns ?? {}),
-      },
-    };
+    return this.resolver.resolveMaskingPolicy(toolName);
   }
 
   /**
