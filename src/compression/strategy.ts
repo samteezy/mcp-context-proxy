@@ -4,12 +4,12 @@ import type { CompressionStrategy } from "../types.js";
  * Detect the appropriate compression strategy based on content
  */
 export function detectStrategy(content: string): CompressionStrategy {
-  // Try to parse as JSON
+  // Try to parse as JSON - expected to fail for non-JSON content
   try {
     JSON.parse(content);
     return "json";
   } catch {
-    // Not valid JSON
+    // Not valid JSON, continue to check other strategies
   }
 
   // Check for code-like patterns

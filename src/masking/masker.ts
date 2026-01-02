@@ -218,17 +218,9 @@ export class Masker {
   }
 
   /**
-   * Mask PII in a string value
+   * Collect all patterns for masking based on policy
    */
-  private async maskString(
-    text: string,
-    path: string,
-    policy: ResolvedMaskingPolicy,
-    context: MaskingContext
-  ): Promise<string> {
-    const logger = getLogger();
-
-    // Collect patterns
+  private collectPatterns(policy: ResolvedMaskingPolicy): PIIPattern[] {
     const patterns: PIIPattern[] = [];
 
     // Add built-in patterns for enabled PII types
@@ -241,15 +233,25 @@ export class Masker {
       patterns.push(createCustomPattern(name, patternDef));
     }
 
+    return patterns;
+  }
+
+  /**
+   * Apply regex patterns and return masked text with metadata
+   */
+  private applyRegexPatterns(
+    text: string,
+    path: string,
+    patterns: PIIPattern[],
+    context: MaskingContext
+  ): { result: string; lowestConfidence: PatternConfidence; matchedTypes: Set<PIIType> } {
     let result = text;
     let lowestConfidence: PatternConfidence = "high";
     const matchedTypes = new Set<PIIType>();
 
-    // Apply regex patterns with numbered placeholders
     for (const pattern of patterns) {
       const matches = text.match(pattern.regex);
       if (matches && matches.length > 0) {
-        // Replace each match with a unique numbered placeholder
         result = result.replace(pattern.regex, (match) => {
           const placeholder = this.getNextPlaceholder(pattern.type, context);
           context.restorationMap.set(placeholder, match);
@@ -262,62 +264,96 @@ export class Masker {
         });
 
         matchedTypes.add(pattern.type);
-
-        // Track lowest confidence for LLM fallback decision
         lowestConfidence = minConfidence(lowestConfidence, pattern.confidence);
       }
     }
 
-    // Check if LLM fallback is needed (trigger if any pattern confidence <= threshold)
+    return { result, lowestConfidence, matchedTypes };
+  }
+
+  /**
+   * Apply LLM fallback detection if needed
+   */
+  private async applyLlmFallback(
+    originalText: string,
+    currentResult: string,
+    path: string,
+    policy: ResolvedMaskingPolicy,
+    matchedTypes: Set<PIIType>,
+    context: MaskingContext
+  ): Promise<string> {
+    const logger = getLogger();
+
+    if (!this.llmDetector) {
+      return currentResult;
+    }
+
+    try {
+      const llmResult = await this.llmDetector.detectAndMask(
+        originalText,
+        policy.piiTypes
+      );
+
+      if (!llmResult.hasPII) {
+        return currentResult;
+      }
+
+      // Replace LLM generic placeholders with our numbered ones
+      let result = llmResult.maskedText;
+
+      for (const type of llmResult.detectedTypes) {
+        const genericPlaceholder = this.getLLMPlaceholder(type);
+        const regex = new RegExp(genericPlaceholder.replace(/[[\]]/g, "\\$&"), "g");
+
+        result = result.replace(regex, () => {
+          const placeholder = this.getNextPlaceholder(type, context);
+          context.restorationMap.set(placeholder, `<LLM_DETECTED_${type}>`);
+          if (!matchedTypes.has(type)) {
+            context.maskedFields.push({
+              path,
+              piiType: type,
+              detectionMethod: "llm",
+            });
+          }
+          return placeholder;
+        });
+      }
+
+      return result;
+    } catch (error) {
+      logger.error("LLM fallback failed:", error);
+      return currentResult;
+    }
+  }
+
+  /**
+   * Mask PII in a string value
+   */
+  private async maskString(
+    text: string,
+    path: string,
+    policy: ResolvedMaskingPolicy,
+    context: MaskingContext
+  ): Promise<string> {
+    const logger = getLogger();
+
+    const patterns = this.collectPatterns(policy);
+    const { result, lowestConfidence, matchedTypes } = this.applyRegexPatterns(
+      text,
+      path,
+      patterns,
+      context
+    );
+
+    // Check if LLM fallback is needed
     const needsLlmFallback =
       policy.llmFallback &&
       this.llmDetector &&
       shouldTriggerLlmFallback(lowestConfidence, policy.llmFallbackThreshold);
 
-    if (needsLlmFallback && this.llmDetector) {
-      logger.debug(
-        `${lowestConfidence} confidence for '${path}', using LLM fallback`
-      );
-
-      try {
-        // Send original text to LLM for verification/additional detection
-        const llmResult = await this.llmDetector.detectAndMask(
-          text,
-          policy.piiTypes
-        );
-
-        if (llmResult.hasPII) {
-          // LLM detected PII - we need to re-mask with numbered placeholders
-          // Parse the LLM result to find what was masked and create proper placeholders
-          // For simplicity, we replace LLM generic placeholders with our numbered ones
-          let llmMasked = llmResult.maskedText;
-
-          for (const type of llmResult.detectedTypes) {
-            const genericPlaceholder = this.getLLMPlaceholder(type);
-            const regex = new RegExp(genericPlaceholder.replace(/[[\]]/g, '\\$&'), 'g');
-
-            llmMasked = llmMasked.replace(regex, () => {
-              const placeholder = this.getNextPlaceholder(type, context);
-              // We don't have the original from LLM, but we can try to find it
-              // For now, store a marker that this was LLM-detected
-              context.restorationMap.set(placeholder, `<LLM_DETECTED_${type}>`);
-              if (!matchedTypes.has(type)) {
-                context.maskedFields.push({
-                  path,
-                  piiType: type,
-                  detectionMethod: "llm",
-                });
-              }
-              return placeholder;
-            });
-          }
-
-          result = llmMasked;
-        }
-      } catch (error) {
-        logger.error("LLM fallback failed:", error);
-        // Continue with regex results on failure
-      }
+    if (needsLlmFallback) {
+      logger.debug(`${lowestConfidence} confidence for '${path}', using LLM fallback`);
+      return this.applyLlmFallback(text, result, path, policy, matchedTypes, context);
     }
 
     return result;

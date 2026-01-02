@@ -5,6 +5,7 @@ import type { Application, Request, Response } from "express";
 import { readFileSync, writeFileSync, renameSync } from "fs";
 import { configSchema } from "../config/schema.js";
 import { getStreamingTransport } from "../logger.js";
+import { SSE_HEARTBEAT_INTERVAL_MS } from "../constants.js";
 import type {
   MCPCPConfig,
   UpstreamStatus,
@@ -201,7 +202,7 @@ export function registerApiRoutes(app: Application, context: ApiContext): void {
         clearInterval(heartbeat);
         unsubscribe();
       }
-    }, 30000);
+    }, SSE_HEARTBEAT_INTERVAL_MS);
 
     // Cleanup on close
     req.on("close", () => {

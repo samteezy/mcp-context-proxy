@@ -8,6 +8,7 @@ import { MemoryCache } from "./cache/index.js";
 import { ToolConfigResolver, loadConfig } from "./config/index.js";
 import { initLogger, getLogger } from "./logger.js";
 import { generateHtml, registerApiRoutes } from "./web/index.js";
+import { CACHE_CLEANUP_INTERVAL_MS, DEFAULT_PORT, DEFAULT_HOST } from "./constants.js";
 
 export interface MCPCP {
   start(): Promise<void>;
@@ -93,6 +94,26 @@ export async function createProxy(config: MCPCPConfig, configPath: string): Prom
   }
 
   /**
+   * Connect to all upstream clients and refresh aggregated data
+   */
+  async function connectUpstreamsAndRefresh(): Promise<void> {
+    const log = getLogger();
+
+    const connectionResults = await Promise.allSettled(
+      upstreamClients.map((client) => client.connect())
+    );
+
+    connectionResults.forEach((result, index) => {
+      const client = upstreamClients[index];
+      if (result.status === "rejected") {
+        log.error(`Failed to connect to upstream '${client.id}': ${result.reason}`);
+      }
+    });
+
+    await aggregator.refresh();
+  }
+
+  /**
    * Hot reload configuration without restarting the HTTP server
    */
   async function reload(newConfig: MCPCPConfig): Promise<void> {
@@ -152,21 +173,8 @@ export async function createProxy(config: MCPCPConfig, configPath: string): Prom
       aggregator.registerClient(client);
     }
 
-    // Connect to new upstreams
-    const connectionResults = await Promise.allSettled(
-      upstreamClients.map((client) => client.connect())
-    );
-
-    // Log connection results
-    connectionResults.forEach((result, index) => {
-      const client = upstreamClients[index];
-      if (result.status === "rejected") {
-        log.error(`Failed to connect to upstream '${client.id}': ${result.reason}`);
-      }
-    });
-
-    // Refresh aggregated data
-    await aggregator.refresh();
+    // Connect to new upstreams and refresh
+    await connectUpstreamsAndRefresh();
 
     log.info("Configuration reloaded successfully");
   }
@@ -174,23 +182,8 @@ export async function createProxy(config: MCPCPConfig, configPath: string): Prom
   async function start(): Promise<void> {
     logger.info("Starting MCPCP...");
 
-    // Connect to all upstreams
-    const connectionResults = await Promise.allSettled(
-      upstreamClients.map((client) => client.connect())
-    );
-
-    // Log connection results
-    connectionResults.forEach((result, index) => {
-      const client = upstreamClients[index];
-      if (result.status === "rejected") {
-        logger.error(
-          `Failed to connect to upstream '${client.id}': ${result.reason}`
-        );
-      }
-    });
-
-    // Refresh aggregated data
-    await aggregator.refresh();
+    // Connect to all upstreams and refresh
+    await connectUpstreamsAndRefresh();
 
     // Start downstream server
     if (currentConfig.downstream.transport === "stdio") {
@@ -247,19 +240,19 @@ export async function createProxy(config: MCPCPConfig, configPath: string): Prom
         });
       });
 
-      const port = currentConfig.downstream.port || 3000;
-      const host = currentConfig.downstream.host || "0.0.0.0";
+      const port = currentConfig.downstream.port || DEFAULT_PORT;
+      const host = currentConfig.downstream.host || DEFAULT_HOST;
 
       httpServer = expressApp.listen(port, host, () => {
         logger.info(`MCPCP listening on ${host}:${port}`);
-        logger.info(`Admin UI available at http://${host === "0.0.0.0" ? "localhost" : host}:${port}/`);
+        logger.info(`Admin UI available at http://${host === DEFAULT_HOST ? "localhost" : host}:${port}/`);
       });
     }
 
     // Start cache cleanup interval
     cacheCleanupInterval = setInterval(() => {
       cache.cleanup();
-    }, 60000); // Cleanup every minute
+    }, CACHE_CLEANUP_INTERVAL_MS);
 
     logger.info("MCPCP started successfully");
   }

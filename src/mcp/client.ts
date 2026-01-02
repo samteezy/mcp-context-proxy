@@ -13,6 +13,7 @@ import type {
 } from "@modelcontextprotocol/sdk/types.js";
 import type { UpstreamServerConfig } from "../types.js";
 import { getLogger } from "../logger.js";
+import { CLIENT_NAME, VERSION } from "../constants.js";
 
 /**
  * Wrapper around MCP Client for connecting to upstream servers
@@ -26,8 +27,8 @@ export class UpstreamClient {
   constructor(config: UpstreamServerConfig) {
     this.config = config;
     this.client = new Client({
-      name: "mcpcp-proxy",
-      version: "0.1.0",
+      name: CLIENT_NAME,
+      version: VERSION,
     });
   }
 
@@ -103,8 +104,10 @@ export class UpstreamClient {
     try {
       const result = await this.client.listResources();
       return result.resources;
-    } catch {
-      // Server may not support resources
+    } catch (error) {
+      // Server may not support resources - log for debugging
+      const logger = getLogger();
+      logger.debug(`Upstream '${this.config.id}' does not support resources: ${error}`);
       return [];
     }
   }
@@ -117,8 +120,10 @@ export class UpstreamClient {
     try {
       const result = await this.client.listPrompts();
       return result.prompts;
-    } catch {
-      // Server may not support prompts
+    } catch (error) {
+      // Server may not support prompts - log for debugging
+      const logger = getLogger();
+      logger.debug(`Upstream '${this.config.id}' does not support prompts: ${error}`);
       return [];
     }
   }

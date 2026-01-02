@@ -21,6 +21,7 @@ import type { ToolConfigResolver } from "../config/index.js";
 import { Masker } from "../masking/index.js";
 import { MemoryCache, compressedResultCacheKey } from "../cache/index.js";
 import { getLogger } from "../logger.js";
+import { CLIENT_NAME, VERSION } from "../constants.js";
 
 export interface DownstreamServerOptions {
   config: DownstreamConfig;
@@ -56,7 +57,7 @@ export class DownstreamServer {
     this.resolver = options.resolver;
 
     this.server = new Server(
-      { name: "mcpcp-proxy", version: "0.1.0" },
+      { name: CLIENT_NAME, version: VERSION },
       {
         capabilities: {
           tools: { listChanged: true },
