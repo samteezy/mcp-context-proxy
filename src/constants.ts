@@ -1,9 +1,12 @@
 /**
  * Shared constants for mcp-context-proxy
  */
+import { createRequire } from "module";
 
-// Version should match package.json
-export const VERSION = "0.2.1";
+// Read version from package.json (single source of truth)
+const require = createRequire(import.meta.url);
+const pkg = require("../package.json") as { version: string };
+export const VERSION = pkg.version;
 
 // MCP client/server identification
 export const CLIENT_NAME = "mcpcp-proxy";
