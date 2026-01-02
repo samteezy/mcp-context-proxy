@@ -20,6 +20,24 @@ export class Router {
   }
 
   /**
+   * Create an error result for tool calls
+   */
+  private createToolErrorResult(
+    message: string,
+    goal?: string,
+    restorationMap?: Map<string, string>
+  ): { result: CallToolResult; goal?: string; restorationMap?: Map<string, string> } {
+    return {
+      result: {
+        content: [{ type: "text", text: message }],
+        isError: true,
+      },
+      goal,
+      restorationMap,
+    };
+  }
+
+  /**
    * Update the masker (used during hot reload)
    */
   setMasker(masker: Masker | undefined): void {
@@ -67,38 +85,22 @@ export class Router {
     // Check if tool is hidden (reject even if it exists)
     if (this.aggregator.isToolHidden(namespacedName)) {
       logger.warn(`Rejected call to hidden tool: ${namespacedName}`);
-      return {
-        result: {
-          content: [
-            {
-              type: "text",
-              text: `Error: Tool '${namespacedName}' not found`,
-            },
-          ],
-          isError: true,
-        },
+      return this.createToolErrorResult(
+        `Error: Tool '${namespacedName}' not found`,
         goal,
-        restorationMap,
-      };
+        restorationMap
+      );
     }
 
     const routing = this.aggregator.findTool(namespacedName);
 
     if (!routing) {
       logger.error(`Tool not found: ${namespacedName}`);
-      return {
-        result: {
-          content: [
-            {
-              type: "text",
-              text: `Error: Tool '${namespacedName}' not found`,
-            },
-          ],
-          isError: true,
-        },
+      return this.createToolErrorResult(
+        `Error: Tool '${namespacedName}' not found`,
         goal,
-        restorationMap,
-      };
+        restorationMap
+      );
     }
 
     const { client, originalName } = routing;
@@ -115,19 +117,11 @@ export class Router {
       return { result, goal, restorationMap };
     } catch (error) {
       logger.error(`Error calling tool '${originalName}' on '${client.id}':`, error);
-      return {
-        result: {
-          content: [
-            {
-              type: "text",
-              text: `Error calling tool: ${error instanceof Error ? error.message : String(error)}`,
-            },
-          ],
-          isError: true,
-        },
+      return this.createToolErrorResult(
+        `Error calling tool: ${error instanceof Error ? error.message : String(error)}`,
         goal,
-        restorationMap,
-      };
+        restorationMap
+      );
     }
   }
 

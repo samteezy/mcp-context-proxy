@@ -49,6 +49,24 @@ export class Compressor {
   }
 
   /**
+   * Create an uncompressed result (used when compression is skipped or fails)
+   */
+  private createUncompressedResult(
+    content: string,
+    strategy: CompressionResult["strategy"],
+    originalTokens: number
+  ): CompressionResult {
+    return {
+      original: content,
+      compressed: content,
+      strategy,
+      originalTokens,
+      compressedTokens: originalTokens,
+      wasCompressed: false,
+    };
+  }
+
+  /**
    * Compress text using the given policy
    */
   async compress(
@@ -61,14 +79,7 @@ export class Compressor {
 
     // Don't compress if disabled or under threshold
     if (!policy.enabled || originalTokens <= policy.tokenThreshold) {
-      return {
-        original: content,
-        compressed: content,
-        strategy: "default",
-        originalTokens,
-        compressedTokens: originalTokens,
-        wasCompressed: false,
-      };
+      return this.createUncompressedResult(content, "default", originalTokens);
     }
 
     const strategy = detectStrategy(content);
@@ -116,14 +127,7 @@ export class Compressor {
       // Validate non-empty response
       if (!compressedText || compressedText.length === 0) {
         logger.warn("LLM returned empty response, using original content");
-        return {
-          original: content,
-          compressed: content,
-          strategy,
-          originalTokens,
-          compressedTokens: originalTokens,
-          wasCompressed: false,
-        };
+        return this.createUncompressedResult(content, strategy, originalTokens);
       }
 
       const compressedTokens = this.countTokens(compressedText);
@@ -143,14 +147,7 @@ export class Compressor {
       };
     } catch (error) {
       logger.error("Compression failed, returning original:", error);
-      return {
-        original: content,
-        compressed: content,
-        strategy,
-        originalTokens,
-        compressedTokens: originalTokens,
-        wasCompressed: false,
-      };
+      return this.createUncompressedResult(content, strategy, originalTokens);
     }
   }
 
