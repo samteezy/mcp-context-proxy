@@ -164,7 +164,7 @@ export class Aggregator {
 
     // Append instruction to description
     const goalInstruction =
-      "Provide a brief goal in '_clip_goal' to improve response relevance.";
+      "Use '_clip_goal' state your goal for making this tool call.";
     const description = tool.description
       ? `${tool.description} ${goalInstruction}`
       : goalInstruction;
@@ -180,7 +180,7 @@ export class Aggregator {
         _clip_goal: {
           type: "string" as const,
           description:
-            "Why you need this data and what information is most important",
+            "What information you're looking for from this response. Will be referenced by an LLM for generating a response.",
         },
       },
     };
