@@ -1,7 +1,7 @@
 {
-  "name": "mcproxy",
+  "name": "mcp-context-proxy",
   "version": "0.1.0",
-  "description": "MCP Context Proxy - Transparent MCP proxy that compresses large tool responses for resource-constrained local models",
+  "description": "MCP Context Proxy - Transparent MCP proxy that helps with large tool responses for resource-constrained local models",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
