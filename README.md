@@ -31,7 +31,7 @@ Upstream MCP Server(s)
 
 - **Transparent proxy** - Works with any MCP client and server
 - **Smart compression** - Auto-detects content type (JSON, code, text) and applies appropriate compression strategy, with per-tool configurability
-- **In-memory caching** - Reduces repeated compressions with TTL-based cache *(not yet implemented)*
+- **Response caching** - Caches compressed responses to avoid redundant LLM calls (~100x faster on cache hits)
 - **Tool hiding** - Hide unwanted tools to reduce context pollution and improve model focus
 - **Description overrides** - Customize tool descriptions to better steer client LLM behavior
 - **PII masking** - Mask sensitive data (emails, SSNs, phone numbers, etc.) before sending to upstream servers
@@ -182,15 +182,46 @@ The `customInstructions` field lets you guide the compression LLM for specific t
 
 These instructions are appended to the compression prompt, allowing you to customize what information is preserved or omitted for each tool.
 
-### Cache (NOT YET IMPLEMENTED)
+### Cache
 
-> **Note:** Cache configuration is parsed but caching is not yet wired into the request flow. This feature is planned for a future release.
+Caches compressed tool responses to avoid redundant LLM compression calls. Identical requests return cached results instantly (~100x faster).
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `enabled` | `boolean` | Enable/disable caching |
-| `ttlSeconds` | `number` | Cache entry TTL (default: 300) |
+| `enabled` | `boolean` | Enable/disable caching (default: true) |
+| `ttlSeconds` | `number` | Cache entry TTL in seconds (default: 300) |
 | `maxEntries` | `number` | Maximum cache entries (default: 1000) |
+| `cacheErrors` | `boolean` | Cache error responses (default: true) |
+
+Cache keys include: tool name, arguments, and normalized goal (lowercase, no punctuation). This means requests with semantically similar goals like "Find the API endpoints!" and "find the api endpoints" will share cached results.
+
+#### Per-Tool Cache TTL
+
+You can override the cache TTL for specific tools, or disable caching entirely for time-sensitive tools:
+
+```json
+{
+  "upstreams": [
+    {
+      "id": "my-server",
+      "tools": {
+        "get_current_time": {
+          "cacheTtl": 0
+        },
+        "fetch_static_docs": {
+          "cacheTtl": 3600
+        }
+      }
+    }
+  ]
+}
+```
+
+| Value | Behavior |
+|-------|----------|
+| `0` | Disable caching for this tool |
+| `undefined` | Use global `cache.ttlSeconds` |
+| `N` | Use N seconds TTL for this tool |
 
 ### Tool Configuration
 
@@ -202,6 +233,7 @@ Configure individual tools within each upstream's `tools` object. Each key is th
 | `compression` | `object` | Per-tool compression policy overrides |
 | `masking` | `object` | Per-tool PII masking policy overrides |
 | `overwriteDescription` | `string` | Replace the tool's description |
+| `cacheTtl` | `number` | Cache TTL in seconds (0 = no caching, undefined = use global) |
 
 #### Hiding Tools
 
