@@ -6,7 +6,15 @@ A transparent MCP (Model Context Protocol) proxy that compresses large tool resp
 
 > **This project is meant for personal use, and no guarantees are made for mission critical production environments... or whatever your environment is. Yeah, it's vibe coded. Trust it as much as you'd trust any other random code you find on the web.**
 
-## Why?
+## TL;DR: It's faster
+
+- Use smaller models to summarize/extract content from any MCP response, saving time and context with your main model. **Stop trying to engineer around bloated MCP responses and get your agent the data it needs.**
+- Uses caching for repeated, identical tool calls to save even more time and reduce API calls
+- Tweak MCPs to your liking - disable tools, overwrite descriptions for better accuracy and SMALLER CONTEXT (see the theme yet?)
+- A single configuration of all your upstream MCPs, so you can try different interfaces/coding agents without needing to setup all your MCPs each time
+- Future looking - pre- and post- hooks to strip PII or check for prompt injection
+
+## Where'd this come from?
 
 For those of us running LLMs locally, especially at home, context costs us time, not just tokens. This project was borne out of frustration with MCPs that are little more than "API wrappers" and would respond with often much more information than I needed, eating up valuable context and taking up time while I waited for the prompt processing to complete.
 
@@ -31,7 +39,7 @@ Upstream MCP Server(s)
 
 - **Transparent proxy** - Works with any MCP client and server
 - **Smart compression** - Auto-detects content type (JSON, code, text) and applies appropriate compression strategy, with per-tool configurability
-- **Response caching** - Caches compressed responses to avoid redundant LLM calls (~100x faster on cache hits)
+- **Response caching** - Caches compressed responses to avoid redundant LLM calls (near-instant response time on cache hits)
 - **Tool hiding** - Hide unwanted tools to reduce context pollution and improve model focus
 - **Description overrides** - Customize tool descriptions to better steer client LLM behavior
 - **PII masking** - Mask sensitive data (emails, SSNs, phone numbers, etc.) before sending to upstream servers
