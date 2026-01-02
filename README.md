@@ -8,7 +8,9 @@ A transparent MCP (Model Context Protocol) proxy that compresses large tool resp
 
 ## Why CLIP?
 
-When running local LLMs on limited VRAM, large context windows from MCP tool responses can overwhelm your model. CLIP sits between your MCP client and upstream MCP servers, automatically compressing responses that exceed a token threshold.
+For those of us running LLMs locally, especially at home, context costs us time, not just tokens. This project was borne out of frustration with MCPs that are little more than "API wrappers" and would respond with often much more information than I needed, eating up valuable context and taking up time while I waited for the prompt processing to complete.
+
+I wanted to see how a tiny LLM (as small as Qwen3-0.6B) could help compress MCP outputs before responding back to the client LLM. That worked, and then I started adding in more functionality to make this a helpful little Swiss Army Knife for enthusiasts like myself... but like a really tiny Swiss Army Knife, not one of those obscene behemoths.
 
 ```
 MCP Client (Claude Desktop, Cursor, etc.)
@@ -21,14 +23,13 @@ Upstream MCP Server(s)
 ## Features
 
 - **Transparent proxy** - Works with any MCP client and server
+- **Smart compression** - Auto-detects content type (JSON, code, text) and applies appropriate compression strategy, with per-tool configurability
+- **In-memory caching** - Reduces repeated compressions with TTL-based cache
 - **Tool hiding** - Hide unwanted tools to reduce context pollution and improve model focus
 - **PII masking** - Mask sensitive data (emails, SSNs, phone numbers, etc.) before sending to upstream servers
-- **Smart compression** - Auto-detects content type (JSON, code, text) and applies appropriate compression strategy
-- **Per-tool policies** - Configure different compression thresholds and masking rules for different tools
-- **Token-based threshold** - Only compresses responses exceeding configurable token count
 - **Multi-server aggregation** - Connect to multiple upstream MCP servers simultaneously
 - **All transports** - Supports stdio, SSE, and Streamable HTTP for both upstream and downstream
-- **In-memory caching** - Reduces repeated compressions with TTL-based cache
+- **Per-tool policies** - Configure different compression thresholds and masking rules for different tools
 
 ## Installation
 
