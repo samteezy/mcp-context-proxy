@@ -107,13 +107,8 @@ The `_clip_goal` field is automatically injected into all tool schemas when `goa
 - The goal is included in the compression prompt to focus on relevant information
 - Example: 14,246 tokens → 283 tokens (98% reduction) with targeted goal
 
-## Future Enhancements
-
-The following features are planned for future implementation:
-
-1. **Tool Renaming/Rewriting** - Ability for users to rewrite tool names and/or descriptions. This allows customizing how tools appear to clients without modifying upstream servers.
-
 ## References
+- Project repo: github.com/samteezy/clip
 - MCPO: https://github.com/open-webui/mcpo/tree/main
 - MCP SDK: https://github.com/modelcontextprotocol/typescript-sdk
 - Vercel SDK: https://ai-sdk.dev/docs/getting-started/nodejs
