@@ -96,7 +96,32 @@ export class Compressor {
         policy.customInstructions
       );
 
-      logger.debug("Calling LLM for compression...");
+      // Create truncated content preview (first 250 + last 250 chars)
+      let contentPreview = content;
+      if (content.length > 500) {
+        contentPreview =
+          content.substring(0, 250) +
+          `\n\n... [${content.length - 500} chars omitted] ...\n\n` +
+          content.substring(content.length - 250);
+      }
+
+      // Reconstruct prompt with truncated content for logging
+      const promptPreview = getCompressionPrompt(
+        strategy,
+        contentPreview,
+        policy.maxOutputTokens,
+        goal,
+        policy.customInstructions
+      );
+
+      logger.debug(
+        `Calling LLM for compression with payload: ${JSON.stringify({
+          model: this.config.model,
+          maxOutputTokens: policy.maxOutputTokens,
+          promptLength: prompt.length,
+          contentLength: content.length,
+        })}\n\nFull prompt (with truncated content):\n${promptPreview}`
+      );
 
       const result = await generateText({
         model: this.provider(this.config.model),

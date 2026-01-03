@@ -156,8 +156,9 @@ export async function createProxy(config: MCPCPConfig, configPath: string): Prom
     }
     router.setMasker(masker);
 
-    // Update cache config
+    // Update cache config and clear cache (config changes may invalidate cached responses)
     cache.updateConfig(newConfig.cache);
+    cache.clear();
     downstreamServer.setCacheConfig(newConfig.cache);
     downstreamServer.setResolver(resolver);
 
@@ -181,6 +182,9 @@ export async function createProxy(config: MCPCPConfig, configPath: string): Prom
 
   async function start(): Promise<void> {
     logger.info("Starting MCPCP...");
+
+    // Clear cache on startup
+    cache.clear();
 
     // Connect to all upstreams and refresh
     await connectUpstreamsAndRefresh();

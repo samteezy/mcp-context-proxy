@@ -87,7 +87,10 @@ export class MemoryCache<T> {
    * Clear the entire cache
    */
   clear(): void {
+    const logger = getLogger();
+    const size = this.cache.size;
     this.cache.clear();
+    logger.info(`Cleared ${size} cache entries`);
   }
 
   /**

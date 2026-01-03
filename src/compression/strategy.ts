@@ -131,8 +131,8 @@ Output only the compressed text, no explanations.
 /**
  * Generate goal-focused extraction prompts
  *
- * These prompts place the goal first and focus on extracting
- * relevant information rather than general compression.
+ * Structure: context first, task instructions, then goal at the end.
+ * This puts the goal adjacent to the task for clarity.
  */
 function getGoalFocusedPrompt(
   strategy: CompressionStrategy,
@@ -145,13 +145,11 @@ function getGoalFocusedPrompt(
 ${goal}
 </goal>`;
 
-  const relevanceFilter = `CRITICAL: Extract only information that helps achieve the goal above. Completely omit sections, fields, or details that are irrelevant - they waste tokens and distract from the purpose.`;
+  const relevanceFilter = `CRITICAL: Extract only information that helps achieve the goal below. Completely omit sections, fields, or details that are irrelevant - they waste tokens and distract from the purpose.`;
 
   switch (strategy) {
     case "json":
-      return `${goalBlock}
-
-<document type="json">
+      return `<document type="json">
 ${content}
 </document>
 
@@ -166,12 +164,12 @@ ${relevanceFilter}
 
 ${tokenLimit}
 Output only the extracted JSON, no explanations.
-</task>`;
+</task>
+
+${goalBlock}`;
 
     case "code":
-      return `${goalBlock}
-
-<document type="code">
+      return `<document type="code">
 ${content}
 </document>
 
@@ -190,13 +188,13 @@ Omit functions, classes, and sections unrelated to the goal.${customInstructionB
 
 ${tokenLimit}
 Output only the extracted code or summary, no explanations.
-</task>`;
+</task>
+
+${goalBlock}`;
 
     case "default":
     default:
-      return `${goalBlock}
-
-<document>
+      return `<document>
 ${content}
 </document>
 
@@ -211,6 +209,8 @@ ${relevanceFilter}
 
 ${tokenLimit}
 Output only the extracted information, no explanations.
-</task>`;
+</task>
+
+${goalBlock}`;
   }
 }

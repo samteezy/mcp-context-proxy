@@ -733,6 +733,8 @@ export function generateHtml(): string {
             const data = await res.json();
             if (data.success) {
               this.showNotification('Configuration saved', 'success');
+              this.validationStatus = '';
+              this.validationMessage = '';
             } else {
               this.showNotification(data.error || 'Failed to save', 'error');
               if (data.issues) {
