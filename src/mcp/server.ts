@@ -16,6 +16,7 @@ import type { Request, Response } from "express";
 import type { DownstreamConfig, CacheConfig } from "../types.js";
 import type { Aggregator } from "./aggregator.js";
 import { Router } from "./router.js";
+import { RetryTracker } from "./retry-tracker.js";
 import type { Compressor } from "../compression/compressor.js";
 import type { ToolConfigResolver } from "../config/index.js";
 import { Masker } from "../masking/index.js";
@@ -46,6 +47,8 @@ export class DownstreamServer {
   private cacheConfig?: CacheConfig;
   private resolver?: ToolConfigResolver;
   private transport: Transport | null = null;
+  private retryTracker: RetryTracker;
+  private retryCleanupInterval?: ReturnType<typeof setInterval>;
 
   constructor(options: DownstreamServerOptions) {
     this.config = options.config;
@@ -55,6 +58,14 @@ export class DownstreamServer {
     this.cache = options.cache;
     this.cacheConfig = options.cacheConfig;
     this.resolver = options.resolver;
+    this.retryTracker = new RetryTracker();
+
+    // Start retry tracker cleanup interval (every 60s by default)
+    const cleanupIntervalMs = 60_000;
+    this.retryCleanupInterval = setInterval(() => {
+      const retryConfig = this.resolver?.getRetryEscalation();
+      this.retryTracker.cleanup(retryConfig?.windowSeconds ?? 300);
+    }, cleanupIntervalMs);
 
     this.server = new Server(
       { name: CLIENT_NAME, version: VERSION },
@@ -134,6 +145,11 @@ export class DownstreamServer {
    */
   async stop(): Promise<void> {
     const logger = getLogger();
+    // Clear cleanup interval
+    if (this.retryCleanupInterval) {
+      clearInterval(this.retryCleanupInterval);
+      this.retryCleanupInterval = undefined;
+    }
     await this.server.close();
     logger.info("Downstream server stopped");
   }
@@ -192,24 +208,44 @@ export class DownstreamServer {
         }
       }
 
-      const { result, restorationMap } = await this.router.callTool(
+      const { result, bypass, restorationMap } = await this.router.callTool(
         name,
         args || {}
       );
 
-      // Compress the result using tool-specific policy and goal context
-      const compressedResult = await this.compressor.compressToolResult(
-        result,
-        name,
-        goal
-      );
+      // Skip compression if bypass is requested
+      let finalResult: CallToolResult;
+      if (bypass) {
+        logger.info(`Compression bypassed for tool: ${name}`);
+        finalResult = result;
+      } else {
+        // Calculate retry escalation multiplier
+        let escalationMultiplier: number | undefined;
+        const retryConfig = this.resolver?.getRetryEscalation();
+        if (retryConfig?.enabled) {
+          // Record this call for retry tracking
+          this.retryTracker.recordCall(name);
+          escalationMultiplier = this.retryTracker.getEscalationMultiplier(
+            name,
+            retryConfig
+          );
+        }
+
+        // Compress the result using tool-specific policy and goal context
+        finalResult = await this.compressor.compressToolResult(
+          result,
+          name,
+          goal,
+          escalationMultiplier
+        );
+      }
 
       // Restore original PII values before returning to client
       if (restorationMap && restorationMap.size > 0) {
         logger.debug(
           `Restoring ${restorationMap.size} masked value(s) before returning to client`
         );
-        for (const content of compressedResult.content) {
+        for (const content of finalResult.content) {
           if (content.type === "text" && typeof content.text === "string") {
             content.text = Masker.restoreOriginals(content.text, restorationMap);
           }
@@ -220,14 +256,14 @@ export class DownstreamServer {
       if (this.cache && this.cacheConfig?.enabled && toolTtl !== 0) {
         // Check if we should cache errors (default: true)
         const shouldCacheErrors = this.cacheConfig.cacheErrors !== false;
-        if (!compressedResult.isError || shouldCacheErrors) {
+        if (!finalResult.isError || shouldCacheErrors) {
           const cacheKey = compressedResultCacheKey(name, args || {}, goal);
-          this.cache.set(cacheKey, compressedResult, toolTtl);
+          this.cache.set(cacheKey, finalResult, toolTtl);
           logger.debug(`Cached result: ${name}`);
         }
       }
 
-      return compressedResult;
+      return finalResult;
     });
 
     // List resources - aggregate from all upstreams

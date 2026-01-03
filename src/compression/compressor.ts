@@ -152,12 +152,29 @@ export class Compressor {
   }
 
   /**
+   * Build a metadata header to prepend to compressed output
+   */
+  private buildMetadataHeader(
+    originalTokens: number,
+    compressedTokens: number,
+    strategy: CompressionResult["strategy"],
+    escalationMultiplier?: number
+  ): string {
+    const escalationPart =
+      escalationMultiplier && escalationMultiplier > 1
+        ? `, escalation: ${escalationMultiplier}x`
+        : "";
+    return `[Compressed: ${originalTokens}→${compressedTokens} tokens, strategy: ${strategy}${escalationPart}]`;
+  }
+
+  /**
    * Compress a tool result using the policy for the given tool
    */
   async compressToolResult(
     result: CallToolResult,
     toolName?: string,
-    goal?: string
+    goal?: string,
+    escalationMultiplier?: number
   ): Promise<CallToolResult> {
     const logger = getLogger();
     const policy = this.resolvePolicy(toolName);
@@ -166,6 +183,22 @@ export class Compressor {
     if (!policy.enabled) {
       logger.debug(`Compression disabled for tool: ${toolName || "unknown"}`);
       return result;
+    }
+
+    // Apply escalation multiplier to maxOutputTokens if provided
+    const effectivePolicy = { ...policy };
+    if (
+      escalationMultiplier &&
+      escalationMultiplier > 1 &&
+      effectivePolicy.maxOutputTokens
+    ) {
+      const newMaxTokens = Math.ceil(
+        effectivePolicy.maxOutputTokens * escalationMultiplier
+      );
+      logger.info(
+        `Applying retry escalation ${escalationMultiplier}x: maxOutputTokens ${effectivePolicy.maxOutputTokens} -> ${newMaxTokens}`
+      );
+      effectivePolicy.maxOutputTokens = newMaxTokens;
     }
 
     // Extract text content
@@ -182,30 +215,39 @@ export class Compressor {
     const combinedText = textContents.map((c) => c.text).join("\n");
     const tokenCount = this.countTokens(combinedText);
 
-    if (tokenCount <= policy.tokenThreshold) {
+    if (tokenCount <= effectivePolicy.tokenThreshold) {
       logger.debug(
-        `Skipping compression for '${toolName || "unknown"}': ${tokenCount} tokens <= ${policy.tokenThreshold} threshold`
+        `Skipping compression for '${toolName || "unknown"}': ${tokenCount} tokens <= ${effectivePolicy.tokenThreshold} threshold`
       );
       return result;
     }
 
     logger.info(
-      `Compressing '${toolName || "unknown"}': ${tokenCount} tokens > ${policy.tokenThreshold} threshold`
+      `Compressing '${toolName || "unknown"}': ${tokenCount} tokens > ${effectivePolicy.tokenThreshold} threshold`
     );
 
     // Compress the combined text with goal context
-    const compressed = await this.compress(combinedText, policy, goal);
+    const compressed = await this.compress(combinedText, effectivePolicy, goal);
 
     if (!compressed.wasCompressed) {
       return result;
     }
+
+    // Build metadata header and prepend to compressed content
+    const metadataHeader = this.buildMetadataHeader(
+      compressed.originalTokens,
+      compressed.compressedTokens,
+      compressed.strategy,
+      escalationMultiplier
+    );
+    const textWithHeader = `${metadataHeader}\n\n${compressed.compressed}`;
 
     // Replace text content with compressed version
     const newContent = result.content.map((c) => {
       if (c.type === "text") {
         return {
           type: "text" as const,
-          text: compressed.compressed,
+          text: textWithHeader,
         };
       }
       return c;

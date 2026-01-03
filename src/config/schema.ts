@@ -75,6 +75,12 @@ export const defaultPolicySchema = z.object({
   maxOutputTokens: z.number().int().positive().optional(),
 });
 
+export const retryEscalationSchema = z.object({
+  enabled: z.boolean().default(true),
+  windowSeconds: z.number().min(1).default(60),
+  tokenMultiplier: z.number().min(1).default(2),
+});
+
 export const compressionSchema = z.object({
   baseUrl: z.string().url(),
   apiKey: z.string().optional(),
@@ -84,6 +90,8 @@ export const compressionSchema = z.object({
     tokenThreshold: 1000,
   }),
   goalAware: z.boolean().default(true),
+  bypassEnabled: z.boolean().default(false),
+  retryEscalation: retryEscalationSchema.optional(),
 });
 
 export const downstreamSchema = z

@@ -151,7 +151,8 @@ export class Aggregator {
       .map((t) => {
         const descOverride = this.resolver.getDescriptionOverride(t.name);
         const toolWithDesc = descOverride ? { ...t, description: descOverride } : t;
-        return this.injectGoalField(toolWithDesc as AggregatedTool);
+        const withGoal = this.injectGoalField(toolWithDesc as AggregatedTool);
+        return this.injectBypassField(withGoal);
       });
   }
 
@@ -197,6 +198,43 @@ export class Aggregator {
         },
       },
       required: [...existingRequired, "_mcpcp_goal"],
+    };
+
+    return { name: tool.name, description, inputSchema };
+  }
+
+  /**
+   * Inject _mcpcp_bypass field into tool schema if bypass is enabled globally.
+   * This allows clients to bypass compression when they need uncompressed data.
+   */
+  private injectBypassField(tool: Tool): Tool {
+    // Only add bypass field if globally enabled (default: false)
+    if (!this.resolver.isBypassEnabled()) {
+      return tool;
+    }
+
+    // Append instruction to description
+    const bypassInstruction =
+      "Set '_mcpcp_bypass' to true to skip compression and receive the full uncompressed response.";
+    const description = tool.description
+      ? `${tool.description} ${bypassInstruction}`
+      : bypassInstruction;
+
+    // Add _mcpcp_bypass to inputSchema.properties (optional, not required)
+    const existingSchema = tool.inputSchema;
+    const existingProperties =
+      (existingSchema.properties as Record<string, unknown>) || {};
+
+    const inputSchema = {
+      ...existingSchema,
+      properties: {
+        ...existingProperties,
+        _mcpcp_bypass: {
+          type: "boolean" as const,
+          description:
+            "Set to true to bypass compression and receive the full response.",
+        },
+      },
     };
 
     return { name: tool.name, description, inputSchema };

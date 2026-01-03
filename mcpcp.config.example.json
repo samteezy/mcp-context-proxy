@@ -43,6 +43,12 @@
       "enabled": true,
       "tokenThreshold": 1000,
       "maxOutputTokens": 500
+    },
+    "bypassEnabled": false,
+    "retryEscalation": {
+      "enabled": true,
+      "windowSeconds": 60,
+      "tokenMultiplier": 2
     }
   },
   "cache": {

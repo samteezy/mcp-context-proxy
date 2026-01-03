@@ -7,6 +7,7 @@ import type {
   ResolvedCompressionPolicy,
   ResolvedMaskingPolicy,
   PIIType,
+  RetryEscalationConfig,
 } from "../types.js";
 
 const DEFAULT_PII_TYPES: PIIType[] = [
@@ -30,6 +31,8 @@ export class ToolConfigResolver {
   };
   private defaultMaskingPolicy: MaskingPolicy & { enabled: boolean };
   private globalGoalAware: boolean;
+  private globalBypassEnabled: boolean;
+  private globalRetryEscalation: RetryEscalationConfig | undefined;
 
   constructor(config: MCPCPConfig) {
     this.upstreams = config.upstreams;
@@ -41,6 +44,8 @@ export class ToolConfigResolver {
       llmFallbackThreshold: "low",
     };
     this.globalGoalAware = config.compression.goalAware ?? true;
+    this.globalBypassEnabled = config.compression.bypassEnabled ?? false;
+    this.globalRetryEscalation = config.compression.retryEscalation;
   }
 
   /**
@@ -89,6 +94,13 @@ export class ToolConfigResolver {
   }
 
   /**
+   * Check if bypass field injection is enabled globally.
+   */
+  isBypassEnabled(): boolean {
+    return this.globalBypassEnabled;
+  }
+
+  /**
    * Get description override for a tool.
    */
   getDescriptionOverride(namespacedName: string): string | undefined {
@@ -111,7 +123,15 @@ export class ToolConfigResolver {
       maxOutputTokens:
         toolCompression?.maxOutputTokens ?? base.maxOutputTokens,
       customInstructions: toolCompression?.customInstructions,
+      retryEscalation: this.globalRetryEscalation,
     };
+  }
+
+  /**
+   * Get retry escalation config.
+   */
+  getRetryEscalation(): RetryEscalationConfig | undefined {
+    return this.globalRetryEscalation;
   }
 
   /**

@@ -157,6 +157,18 @@ export interface UpstreamServerConfig {
 }
 
 /**
+ * Configuration for retry escalation (increases output on repeated tool calls)
+ */
+export interface RetryEscalationConfig {
+  /** Whether retry escalation is enabled */
+  enabled: boolean;
+  /** Time window in seconds to track repeated calls */
+  windowSeconds: number;
+  /** Multiplier for maxOutputTokens on each retry (linear: 1x, 2x, 3x, etc.) */
+  tokenMultiplier: number;
+}
+
+/**
  * Policy settings for compression (can be global default or per-tool)
  */
 export interface CompressionPolicy {
@@ -186,6 +198,10 @@ export interface CompressionConfig {
   defaultPolicy: CompressionPolicy & { enabled: boolean; tokenThreshold: number };
   /** Enable goal-aware compression globally (adds _mcpcp_goal to tool schemas). Default: true */
   goalAware?: boolean;
+  /** Enable bypass field globally (adds _mcpcp_bypass to tool schemas). Default: false */
+  bypassEnabled?: boolean;
+  /** Configuration for retry escalation (optional) */
+  retryEscalation?: RetryEscalationConfig;
 }
 
 /**
@@ -196,6 +212,7 @@ export interface ResolvedCompressionPolicy {
   tokenThreshold: number;
   maxOutputTokens?: number;
   customInstructions?: string;
+  retryEscalation?: RetryEscalationConfig;
 }
 
 /**

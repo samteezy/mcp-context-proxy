@@ -25,14 +25,16 @@ export class Router {
   private createToolErrorResult(
     message: string,
     goal?: string,
+    bypass?: boolean,
     restorationMap?: Map<string, string>
-  ): { result: CallToolResult; goal?: string; restorationMap?: Map<string, string> } {
+  ): { result: CallToolResult; goal?: string; bypass?: boolean; restorationMap?: Map<string, string> } {
     return {
       result: {
         content: [{ type: "text", text: message }],
         isError: true,
       },
       goal,
+      bypass,
       restorationMap,
     };
   }
@@ -48,6 +50,7 @@ export class Router {
    * Result from callTool including extracted goal
    */
   public static readonly GOAL_FIELD = "_mcpcp_goal";
+  public static readonly BYPASS_FIELD = "_mcpcp_bypass";
 
   /**
    * Route a tool call to the correct upstream
@@ -55,7 +58,7 @@ export class Router {
   async callTool(
     namespacedName: string,
     args: Record<string, unknown>
-  ): Promise<{ result: CallToolResult; goal?: string; restorationMap?: Map<string, string> }> {
+  ): Promise<{ result: CallToolResult; goal?: string; bypass?: boolean; restorationMap?: Map<string, string> }> {
     const logger = getLogger();
 
     // Extract goal before forwarding (strip from args)
@@ -63,8 +66,13 @@ export class Router {
       typeof args[Router.GOAL_FIELD] === "string"
         ? (args[Router.GOAL_FIELD] as string)
         : undefined;
+
+    // Extract bypass flag before forwarding (strip from args)
+    const bypass = args[Router.BYPASS_FIELD] === true;
+
     let forwardArgs = { ...args };
     delete forwardArgs[Router.GOAL_FIELD];
+    delete forwardArgs[Router.BYPASS_FIELD];
 
     // Apply PII masking to arguments before forwarding
     let restorationMap: Map<string, string> | undefined;
@@ -88,6 +96,7 @@ export class Router {
       return this.createToolErrorResult(
         `Error: Tool '${namespacedName}' not found`,
         goal,
+        bypass,
         restorationMap
       );
     }
@@ -99,6 +108,7 @@ export class Router {
       return this.createToolErrorResult(
         `Error: Tool '${namespacedName}' not found`,
         goal,
+        bypass,
         restorationMap
       );
     }
@@ -111,15 +121,19 @@ export class Router {
     if (goal) {
       logger.debug(`Goal provided: "${goal}"`);
     }
+    if (bypass) {
+      logger.debug(`Compression bypass requested`);
+    }
 
     try {
       const result = await client.callTool(originalName, forwardArgs);
-      return { result, goal, restorationMap };
+      return { result, goal, bypass, restorationMap };
     } catch (error) {
       logger.error(`Error calling tool '${originalName}' on '${client.id}':`, error);
       return this.createToolErrorResult(
         `Error calling tool: ${error instanceof Error ? error.message : String(error)}`,
         goal,
+        bypass,
         restorationMap
       );
     }
