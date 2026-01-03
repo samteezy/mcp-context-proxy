@@ -1,0 +1,34 @@
+# Dependencies (reinstalled in container)
+node_modules
+
+# Build output (rebuilt in container)
+dist
+
+# Git
+.git
+.gitignore
+
+# Development/IDE
+.vscode
+.idea
+*.swp
+*.swo
+*.log
+npm-debug.log*
+
+# Testing
+coverage
+.vitest
+
+# Claude
+.claude
+CLAUDE.md
+
+# Config (mounted at runtime)
+mcpcp.config.json
+mcpcp.config.example.json
+
+# Documentation
+README.md
+todo.md
+LICENSE

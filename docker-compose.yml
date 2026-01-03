@@ -1,0 +1,14 @@
+services:
+  mcp-context-proxy:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./mcpcp.config.json:/app/mcpcp.config.json:ro
+    command: ["node", "dist/cli.js", "--config", "/app/mcpcp.config.json"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
