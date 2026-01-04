@@ -165,7 +165,7 @@ export class Masker {
     let result = text;
     for (const [placeholder, original] of restorationMap) {
       // Use replaceAll to handle multiple occurrences
-      result = result.split(placeholder).join(original);
+      result = result.replaceAll(placeholder, original);
     }
     return result;
   }
