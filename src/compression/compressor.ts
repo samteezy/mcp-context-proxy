@@ -96,16 +96,8 @@ export class Compressor {
         policy.customInstructions
       );
 
-      // Create truncated content preview (first 250 + last 250 chars)
-      let contentPreview = content;
-      if (content.length > 500) {
-        contentPreview =
-          content.substring(0, 250) +
-          `\n\n... [${content.length - 500} chars omitted] ...\n\n` +
-          content.substring(content.length - 250);
-      }
-
       // Reconstruct prompt with truncated content for logging
+      const contentPreview = this.createContentPreview(content);
       const promptPreview = getCompressionPrompt(
         strategy,
         contentPreview,
@@ -174,6 +166,23 @@ export class Compressor {
       logger.error("Compression failed, returning original:", error);
       return this.createUncompressedResult(content, strategy, originalTokens);
     }
+  }
+
+  /**
+   * Create a truncated preview of content for logging
+   * Returns first 250 and last 250 chars with omission notice
+   */
+  private createContentPreview(content: string, maxLength = 500): string {
+    if (content.length <= maxLength) {
+      return content;
+    }
+
+    const halfLength = maxLength / 2;
+    return (
+      content.substring(0, halfLength) +
+      `\n\n... [${content.length - maxLength} chars omitted] ...\n\n` +
+      content.substring(content.length - halfLength)
+    );
   }
 
   /**

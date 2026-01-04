@@ -155,13 +155,21 @@ export class Aggregator {
         }
         return !hidden;
       })
-      .map((t) => {
-        const descOverride = this.resolver.getDescriptionOverride(t.name);
-        const toolWithDesc = descOverride ? { ...t, description: descOverride } : t;
-        const withHiddenParams = this.hideParameters(toolWithDesc as AggregatedTool);
-        const withGoal = this.injectGoalField(withHiddenParams as AggregatedTool);
-        return this.injectBypassField(withGoal);
-      });
+      .map((t) => this.transformToolForClient(t));
+  }
+
+  /**
+   * Apply all transformations to a tool before exposing to client
+   */
+  private transformToolForClient(tool: AggregatedTool): Tool {
+    // Apply description override if configured
+    const descOverride = this.resolver.getDescriptionOverride(tool.name);
+    const toolWithDesc = descOverride ? { ...tool, description: descOverride } : tool;
+
+    // Apply transformations: hide parameters, inject goal field, inject bypass field
+    const withHiddenParams = this.hideParameters(toolWithDesc);
+    const withGoal = this.injectGoalField(withHiddenParams);
+    return this.injectBypassField(withGoal);
   }
 
   /**
