@@ -136,3 +136,8 @@ The `_mcpcp_goal` field is automatically injected into all tool schemas when `go
 - MCP SDK: https://github.com/modelcontextprotocol/typescript-sdk
 - Vercel SDK: https://ai-sdk.dev/docs/getting-started/nodejs
 - ai-tokenizer: https://www.npmjs.com/package/ai-tokenizer
+
+## Misc Guidelines
+- GH issues should be a main source of truth for enhancements, bugs, etc. 
+- Always attempt to update existing issues if we're working on one, so progress isn't lost.
+- Whenever reviewing a GH issue, merge request, etc - always attempt to pull all related comments, too.
