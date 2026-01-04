@@ -146,13 +146,13 @@ export class MemoryCache<T> {
 
 /**
  * Generate a cache key from a tool call
+ * Delegates to compressedResultCacheKey for consistency
  */
 export function toolCacheKey(
   toolName: string,
   args: Record<string, unknown>
 ): string {
-  const argsHash = JSON.stringify(args, Object.keys(args).sort());
-  return `tool:${toolName}:${argsHash}`;
+  return compressedResultCacheKey(toolName, args);
 }
 
 /**

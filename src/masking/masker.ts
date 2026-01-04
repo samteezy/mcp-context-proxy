@@ -363,17 +363,7 @@ export class Masker {
    * Get the generic placeholder used by LLM for a PII type
    */
   private getLLMPlaceholder(piiType: PIIType): string {
-    const placeholders: Record<PIIType, string> = {
-      email: "[EMAIL_REDACTED]",
-      ssn: "[SSN_REDACTED]",
-      phone: "[PHONE_REDACTED]",
-      credit_card: "[CREDIT_CARD_REDACTED]",
-      ip_address: "[IP_REDACTED]",
-      date_of_birth: "[DOB_REDACTED]",
-      passport: "[PASSPORT_REDACTED]",
-      driver_license: "[DL_REDACTED]",
-      custom: "[PII_REDACTED]",
-    };
-    return placeholders[piiType] ?? "[PII_REDACTED]";
+    const prefix = PII_TYPE_PREFIXES[piiType] ?? "PII";
+    return `[${prefix}_REDACTED]`;
   }
 }
