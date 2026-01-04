@@ -53,6 +53,24 @@ function isCodeLike(content: string): boolean {
 }
 
 /**
+ * Build common prompt components used in compression prompts
+ */
+function buildPromptComponents(
+  maxTokens?: number,
+  customInstructions?: string
+): { tokenLimit: string; customInstructionBlock: string } {
+  const tokenLimit = maxTokens
+    ? `Keep your response under ${maxTokens} tokens.`
+    : "Be concise while retaining helpful details.";
+
+  const customInstructionBlock = customInstructions
+    ? `\nADDITIONAL INSTRUCTIONS: ${customInstructions}`
+    : "";
+
+  return { tokenLimit, customInstructionBlock };
+}
+
+/**
  * Get the compression prompt for a given strategy
  *
  * Structure: Content first (in XML tags), instructions last.
@@ -68,13 +86,10 @@ export function getCompressionPrompt(
   goal?: string,
   customInstructions?: string
 ): string {
-  const tokenLimit = maxTokens
-    ? `Keep your response under ${maxTokens} tokens.`
-    : "Be concise while retaining helpful details.";
-
-  const customInstructionBlock = customInstructions
-    ? `\nADDITIONAL INSTRUCTIONS: ${customInstructions}`
-    : "";
+  const { tokenLimit, customInstructionBlock } = buildPromptComponents(
+    maxTokens,
+    customInstructions
+  );
 
   // Goal-focused prompts are structured differently
   if (goal) {

@@ -38,6 +38,8 @@ export interface DownstreamServerOptions {
  * Downstream MCP server that clients connect to
  */
 export class DownstreamServer {
+  private static readonly RETRY_CLEANUP_INTERVAL_MS = 60_000;
+
   private server: Server;
   private config: DownstreamConfig;
   private aggregator: Aggregator;
@@ -61,11 +63,10 @@ export class DownstreamServer {
     this.retryTracker = new RetryTracker();
 
     // Start retry tracker cleanup interval (every 60s by default)
-    const cleanupIntervalMs = 60_000;
     this.retryCleanupInterval = setInterval(() => {
       const retryConfig = this.resolver?.getRetryEscalation();
       this.retryTracker.cleanup(retryConfig?.windowSeconds ?? 300);
-    }, cleanupIntervalMs);
+    }, DownstreamServer.RETRY_CLEANUP_INTERVAL_MS);
 
     this.server = new Server(
       { name: CLIENT_NAME, version: VERSION },

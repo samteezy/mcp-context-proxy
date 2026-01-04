@@ -155,13 +155,21 @@ export class Aggregator {
         }
         return !hidden;
       })
-      .map((t) => {
-        const descOverride = this.resolver.getDescriptionOverride(t.name);
-        const toolWithDesc = descOverride ? { ...t, description: descOverride } : t;
-        const withHiddenParams = this.hideParameters(toolWithDesc as AggregatedTool);
-        const withGoal = this.injectGoalField(withHiddenParams as AggregatedTool);
-        return this.injectBypassField(withGoal);
-      });
+      .map((t) => this.transformToolForClient(t));
+  }
+
+  /**
+   * Apply all transformations to a tool before exposing to client
+   */
+  private transformToolForClient(tool: AggregatedTool): Tool {
+    // Apply description override if configured
+    const descOverride = this.resolver.getDescriptionOverride(tool.name);
+    const toolWithDesc = descOverride ? { ...tool, description: descOverride } : tool;
+
+    // Apply transformations: hide parameters, inject goal field, inject bypass field
+    const withHiddenParams = this.hideParameters(toolWithDesc);
+    const withGoal = this.injectGoalField(withHiddenParams);
+    return this.injectBypassField(withGoal);
   }
 
   /**
@@ -351,77 +359,99 @@ export class Aggregator {
   }
 
   /**
+   * Generic find method for cached entities
+   */
+  private findEntity<T extends { name?: string; uri?: string; upstreamId: string }>(
+    cache: T[],
+    identifier: string,
+    identifierType: 'name' | 'uri'
+  ): { client: UpstreamClient; original: string } | null {
+    const entity = cache.find((item) =>
+      identifierType === 'uri'
+        ? ('uri' in item && item.uri === identifier)
+        : ('name' in item && item.name === identifier)
+    );
+
+    if (!entity) return null;
+
+    const client = this.clients.get(entity.upstreamId);
+    if (!client) return null;
+
+    const originalValue = identifierType === 'uri'
+      ? (entity as { originalUri: string }).originalUri
+      : (entity as { originalName: string }).originalName;
+
+    return { client, original: originalValue };
+  }
+
+  /**
    * Find a tool by its namespaced name and return routing info
    */
   findTool(namespacedName: string): { client: UpstreamClient; originalName: string } | null {
-    const tool = this.toolsCache.find((t) => t.name === namespacedName);
-    if (!tool) return null;
-
-    const client = this.clients.get(tool.upstreamId);
-    if (!client) return null;
-
-    return { client, originalName: tool.originalName };
+    const result = this.findEntity(this.toolsCache, namespacedName, 'name');
+    return result ? { client: result.client, originalName: result.original } : null;
   }
 
   /**
    * Find a resource by its namespaced URI and return routing info
    */
   findResource(namespacedUri: string): { client: UpstreamClient; originalUri: string } | null {
-    const resource = this.resourcesCache.find((r) => r.uri === namespacedUri);
-    if (!resource) return null;
-
-    const client = this.clients.get(resource.upstreamId);
-    if (!client) return null;
-
-    return { client, originalUri: resource.originalUri };
+    const result = this.findEntity(this.resourcesCache, namespacedUri, 'uri');
+    return result ? { client: result.client, originalUri: result.original } : null;
   }
 
   /**
    * Find a prompt by its namespaced name and return routing info
    */
   findPrompt(namespacedName: string): { client: UpstreamClient; originalName: string } | null {
-    const prompt = this.promptsCache.find((p) => p.name === namespacedName);
-    if (!prompt) return null;
+    const result = this.findEntity(this.promptsCache, namespacedName, 'name');
+    return result ? { client: result.client, originalName: result.original } : null;
+  }
 
-    const client = this.clients.get(prompt.upstreamId);
-    if (!client) return null;
+  /**
+   * Generic helper to namespace an entity with upstream ID
+   */
+  private namespaceEntity<T extends { name?: string; uri?: string }>(
+    entity: T,
+    upstreamId: string,
+    type: 'tool' | 'resource' | 'prompt'
+  ): T & { originalName?: string; originalUri?: string; upstreamId: string } {
+    if (type === 'resource' && 'uri' in entity) {
+      return {
+        ...entity,
+        uri: `${upstreamId}://${entity.uri}` as any,
+        originalUri: entity.uri as string,
+        upstreamId,
+      };
+    }
 
-    return { client, originalName: prompt.originalName };
+    // For tools and prompts (use name)
+    return {
+      ...entity,
+      name: `${upstreamId}__${entity.name}` as any,
+      originalName: entity.name as string,
+      upstreamId,
+    };
   }
 
   /**
    * Namespace a tool to avoid conflicts
    */
   private namespaceTool(tool: Tool, upstreamId: string): AggregatedTool {
-    return {
-      ...tool,
-      name: `${upstreamId}__${tool.name}`,
-      originalName: tool.name,
-      upstreamId,
-    };
+    return this.namespaceEntity(tool, upstreamId, 'tool') as AggregatedTool;
   }
 
   /**
    * Namespace a resource URI to avoid conflicts
    */
   private namespaceResource(resource: Resource, upstreamId: string): AggregatedResource {
-    return {
-      ...resource,
-      uri: `${upstreamId}://${resource.uri}`,
-      originalUri: resource.uri,
-      upstreamId,
-    };
+    return this.namespaceEntity(resource, upstreamId, 'resource') as AggregatedResource;
   }
 
   /**
    * Namespace a prompt to avoid conflicts
    */
   private namespacePrompt(prompt: Prompt, upstreamId: string): AggregatedPrompt {
-    return {
-      ...prompt,
-      name: `${upstreamId}__${prompt.name}`,
-      originalName: prompt.name,
-      upstreamId,
-    };
+    return this.namespaceEntity(prompt, upstreamId, 'prompt') as AggregatedPrompt;
   }
 }

@@ -122,6 +122,24 @@ export class ToolConfigResolver {
   }
 
   /**
+   * Merge a tool-specific partial policy with base policy
+   */
+  private mergePolicy<T extends Record<string, unknown>>(
+    base: T,
+    override?: Partial<T>
+  ): T {
+    if (!override) return base;
+
+    const merged = { ...base };
+    for (const key in override) {
+      if (override[key] !== undefined) {
+        merged[key] = override[key] as T[Extract<keyof T, string>];
+      }
+    }
+    return merged;
+  }
+
+  /**
    * Resolve compression policy for a tool.
    * Priority: tool-level → global default
    */
@@ -131,12 +149,10 @@ export class ToolConfigResolver {
       ? this.getToolConfig(namespacedName)?.compression
       : undefined;
 
+    const merged = this.mergePolicy(base, toolCompression);
+
     return {
-      enabled: toolCompression?.enabled ?? base.enabled,
-      tokenThreshold: toolCompression?.tokenThreshold ?? base.tokenThreshold,
-      maxOutputTokens:
-        toolCompression?.maxOutputTokens ?? base.maxOutputTokens,
-      customInstructions: toolCompression?.customInstructions,
+      ...merged,
       retryEscalation: this.globalRetryEscalation,
     };
   }
@@ -158,14 +174,11 @@ export class ToolConfigResolver {
       ? this.getToolConfig(namespacedName)?.masking
       : undefined;
 
+    const merged = this.mergePolicy(base, toolMasking);
+
     return {
-      enabled: toolMasking?.enabled ?? base.enabled,
-      piiTypes: toolMasking?.piiTypes ?? base.piiTypes ?? DEFAULT_PII_TYPES,
-      llmFallback: toolMasking?.llmFallback ?? base.llmFallback ?? false,
-      llmFallbackThreshold:
-        toolMasking?.llmFallbackThreshold ??
-        base.llmFallbackThreshold ??
-        "low",
+      ...merged,
+      piiTypes: merged.piiTypes ?? DEFAULT_PII_TYPES,
       customPatterns: {
         ...(base.customPatterns ?? {}),
         ...(toolMasking?.customPatterns ?? {}),
