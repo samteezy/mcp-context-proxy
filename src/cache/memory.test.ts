@@ -217,4 +217,116 @@ describe("compressedResultCacheKey", () => {
     const key2 = compressedResultCacheKey("myTool", { a: 1 }, "some goal");
     expect(key1).not.toBe(key2);
   });
+
+  it("should handle complex nested arguments in compressed cache key", () => {
+    const args = {
+      nested: {
+        deep: {
+          value: 123,
+        },
+        array: [1, 2, 3],
+      },
+    };
+    const key = compressedResultCacheKey("tool", args, "goal");
+    expect(key).toContain("tool");
+    expect(key).toBeDefined();
+  });
+
+  it("should handle array arguments in compressed cache key", () => {
+    const key1 = compressedResultCacheKey("tool", { items: [1, 2, 3] }, "goal");
+    const key2 = compressedResultCacheKey("tool", { items: [3, 2, 1] }, "goal");
+    // Arrays in different order should generate different keys
+    expect(key1).not.toBe(key2);
+  });
+});
+
+describe("MemoryCache - Additional Edge Cases", () => {
+  it("should handle size property correctly", () => {
+    const cache = new MemoryCache<string>({
+      enabled: true,
+      ttlSeconds: 60,
+      maxEntries: 100,
+    });
+
+    expect(cache.size).toBe(0);
+    cache.set("key1", "value1");
+    expect(cache.size).toBe(1);
+    cache.set("key2", "value2");
+    expect(cache.size).toBe(2);
+    cache.delete("key1");
+    expect(cache.size).toBe(1);
+    cache.clear();
+    expect(cache.size).toBe(0);
+  });
+
+  it("should update config without clearing when enabled", () => {
+    const cache = new MemoryCache<string>({
+      enabled: true,
+      ttlSeconds: 60,
+      maxEntries: 100,
+    });
+
+    cache.set("key1", "value1");
+    expect(cache.get("key1")).toBe("value1");
+
+    // Update config but keep enabled=true
+    cache.updateConfig({ enabled: true, ttlSeconds: 120, maxEntries: 200 });
+
+    // Cache should still have the value
+    expect(cache.get("key1")).toBe("value1");
+  });
+
+  it("should handle multiple cleanup calls", () => {
+    const cache = new MemoryCache<string>({
+      enabled: true,
+      ttlSeconds: 0.1,
+      maxEntries: 100,
+    });
+
+    cache.set("key1", "value1");
+    cache.set("key2", "value2");
+
+    // Multiple cleanup calls should not cause errors
+    cache.cleanup();
+    cache.cleanup();
+    cache.cleanup();
+
+    expect(true).toBe(true); // No errors thrown
+  });
+
+  it("should return false when deleting non-existent key", () => {
+    const cache = new MemoryCache<string>({
+      enabled: true,
+      ttlSeconds: 60,
+      maxEntries: 100,
+    });
+
+    expect(cache.delete("nonexistent")).toBe(false);
+  });
+
+  it("should handle setting same key multiple times", () => {
+    const cache = new MemoryCache<string>({
+      enabled: true,
+      ttlSeconds: 60,
+      maxEntries: 100,
+    });
+
+    cache.set("key1", "value1");
+    expect(cache.get("key1")).toBe("value1");
+    expect(cache.size).toBe(1);
+
+    cache.set("key1", "value2");
+    expect(cache.get("key1")).toBe("value2");
+    expect(cache.size).toBe(1); // Size should still be 1
+  });
+
+  it("should handle resourceCacheKey with uri", () => {
+    const key1 = resourceCacheKey("file://test.txt");
+    const key2 = resourceCacheKey("file://test.txt");
+    const key3 = resourceCacheKey("file://other.txt");
+
+    expect(key1).toBe(key2);
+    expect(key1).not.toBe(key3);
+    expect(key1).toContain("file://test.txt");
+  });
 });
