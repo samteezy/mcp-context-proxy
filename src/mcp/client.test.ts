@@ -163,6 +163,45 @@ describe("UpstreamClient", () => {
       await expect(client.connect()).rejects.toThrow("unknown transport");
     });
 
+    it("should throw when stdio transport missing command", async () => {
+      const config = createTestUpstreamConfig({
+        transport: "stdio",
+        command: undefined,
+      });
+
+      const client = new UpstreamClient(config);
+
+      await expect(client.connect()).rejects.toThrow(
+        "stdio transport requires 'command'"
+      );
+    });
+
+    it("should throw when streamable-http transport missing url", async () => {
+      const config = createTestUpstreamConfig({
+        transport: "streamable-http",
+        url: undefined,
+      });
+
+      const client = new UpstreamClient(config);
+
+      await expect(client.connect()).rejects.toThrow(
+        "streamable-http transport requires 'url'"
+      );
+    });
+
+    it("should throw when sse transport missing url", async () => {
+      const config = createTestUpstreamConfig({
+        transport: "sse",
+        url: undefined,
+      });
+
+      const client = new UpstreamClient(config);
+
+      await expect(client.connect()).rejects.toThrow(
+        "sse transport requires 'url'"
+      );
+    });
+
     it("should handle connection errors", async () => {
       const config = createTestUpstreamConfig();
       const client = new UpstreamClient(config);

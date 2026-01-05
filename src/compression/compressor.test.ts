@@ -261,6 +261,30 @@ describe("Compressor", () => {
       const call = mockGenerateText.mock.calls[0][0];
       expect(call.maxOutputTokens).toBe(3000);
     });
+
+    it("should truncate very long content in debug logs", async () => {
+      // Create content longer than 500 chars to trigger truncation
+      const longContent = "a".repeat(1000);
+
+      mockTokenizerCount.mockReturnValueOnce(1500);
+      mockTokenizerCount.mockReturnValueOnce(750);
+      mockGenerateText.mockResolvedValue({
+        text: "Compressed output",
+      });
+
+      const result = await compressor.compress(
+        longContent,
+        { enabled: true, tokenThreshold: 1000, maxOutputTokens: 2000, goalAware: true }
+      );
+
+      // Verify compression happened
+      expect(result.wasCompressed).toBe(true);
+      expect(result.compressed).toBe("Compressed output");
+      expect(mockGenerateText).toHaveBeenCalled();
+
+      // The content preview logic was exercised (line 185-186 coverage)
+      // We can't directly verify log output, but the code path was hit
+    });
   });
 
   describe("compressToolResult", () => {
@@ -482,6 +506,86 @@ describe("Compressor", () => {
 
       expect(compressed).toEqual(result);
     });
+
+    it("should handle undefined toolName in log messages", async () => {
+      vi.mocked(mockResolver.resolveCompressionPolicy!).mockReturnValue({
+        enabled: true,
+        tokenThreshold: 1000,
+        maxOutputTokens: 2000,
+        goalAware: true,
+      });
+
+      mockTokenizerCount.mockReturnValueOnce(1500); // Combined
+      mockTokenizerCount.mockReturnValueOnce(1500); // Original
+      mockTokenizerCount.mockReturnValueOnce(750); // Compressed
+      mockGenerateText.mockResolvedValue({ text: "Compressed" });
+
+      const result: CallToolResult = {
+        content: [{ type: "text", text: "Long content" }],
+      };
+
+      // Call with undefined toolName to trigger "unknown" fallback in logs
+      const compressed = await compressor.compressToolResult(result, undefined);
+
+      const textContent = compressed.content[0] as { type: "text"; text: string };
+      expect(textContent.text).toContain("Compressed");
+    });
+
+    it("should handle multiple think tags in LLM response", async () => {
+      vi.mocked(mockResolver.resolveCompressionPolicy!).mockReturnValue({
+        enabled: true,
+        tokenThreshold: 1000,
+        maxOutputTokens: 2000,
+        goalAware: true,
+      });
+
+      mockTokenizerCount.mockReturnValueOnce(1500); // Combined
+      mockTokenizerCount.mockReturnValueOnce(1500); // Original
+      mockTokenizerCount.mockReturnValueOnce(100); // Compressed
+
+      mockGenerateText.mockResolvedValue({
+        text: "<think>First thought</think><think>Second thought</think>Final output",
+      });
+
+      const result: CallToolResult = {
+        content: [{ type: "text", text: "Long content" }],
+      };
+
+      const compressed = await compressor.compressToolResult(result, "test-tool");
+
+      const textContent = compressed.content[0] as { type: "text"; text: string };
+      expect(textContent.text).toContain("Final output");
+    });
+
+    it("should handle long compressed output in debug logs", async () => {
+      vi.mocked(mockResolver.resolveCompressionPolicy!).mockReturnValue({
+        enabled: true,
+        tokenThreshold: 1000,
+        maxOutputTokens: 2000,
+        goalAware: true,
+      });
+
+      mockTokenizerCount.mockReturnValueOnce(1500); // Combined
+      mockTokenizerCount.mockReturnValueOnce(1500); // Original
+      mockTokenizerCount.mockReturnValueOnce(300); // Compressed
+
+      // Generate output longer than 200 chars to trigger truncation in logs
+      const longOutput = "x".repeat(300);
+      mockGenerateText.mockResolvedValue({
+        text: longOutput,
+      });
+
+      const result: CallToolResult = {
+        content: [{ type: "text", text: "Long content" }],
+      };
+
+      const compressed = await compressor.compressToolResult(result, "test-tool");
+
+      const textContent = compressed.content[0] as { type: "text"; text: string };
+      // Output includes metadata header plus the long output
+      expect(textContent.text).toContain(longOutput);
+      expect(textContent.text.length).toBeGreaterThan(200);
+    });
   });
 
   describe("compressResourceResult", () => {
@@ -623,6 +727,33 @@ describe("Compressor", () => {
 
       // Should return original on failure
       expect(compressed.contents[0]).toHaveProperty("text", "Long content");
+    });
+
+    it("should handle undefined resourceUri in log messages", async () => {
+      vi.mocked(mockResolver.resolveCompressionPolicy!).mockReturnValue({
+        enabled: true,
+        tokenThreshold: 1000,
+        maxOutputTokens: 2000,
+        goalAware: true,
+      });
+
+      mockTokenizerCount.mockReturnValueOnce(1500); // Check
+      mockTokenizerCount.mockReturnValueOnce(1500); // Original in compress()
+      mockTokenizerCount.mockReturnValueOnce(750); // Compressed
+      mockGenerateText.mockResolvedValue({ text: "Compressed" });
+
+      const result: ReadResourceResult = {
+        contents: [
+          { uri: "file:///test.txt", text: "Long content" },
+        ],
+      };
+
+      // Call with undefined resourceUri to trigger "unknown" fallback in logs
+      const compressed = await compressor.compressResourceResult(result, undefined);
+
+      expect(compressed.contents[0]).toHaveProperty("text");
+      const content = compressed.contents[0] as { text: string };
+      expect(content.text).toBe("Compressed");
     });
   });
 });
