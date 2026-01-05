@@ -70,6 +70,7 @@ mcp-context-proxy --init
 2. Edit `mcpcp.config.json` to configure your upstream servers and compression model:
 ```json
 {
+  "version": 2,
   "downstream": {
     "transport": "stdio"
   },
@@ -82,14 +83,25 @@ mcp-context-proxy --init
       "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
     }
   ],
-  "compression": {
-    "baseUrl": "http://localhost:8080/v1",
-    "model": "your-model",
-    "defaultPolicy": {
+  "defaults": {
+    "compression": {
       "enabled": true,
       "tokenThreshold": 1000,
-      "maxOutputTokens": 500
+      "maxOutputTokens": 500,
+      "goalAware": true
+    },
+    "cache": {
+      "enabled": true,
+      "ttlSeconds": 300
     }
+  },
+  "compression": {
+    "baseUrl": "http://localhost:8080/v1",
+    "model": "your-model"
+  },
+  "cache": {
+    "maxEntries": 1000,
+    "cacheErrors": true
   }
 }
 ```
@@ -176,6 +188,47 @@ The dashboard uses these API endpoints, which are also available for programmati
 
 ## Configuration
 
+### Three-Level Configuration Architecture
+
+MCPCP uses a **three-level hierarchy** for configuring proxy behaviors (compression, masking, caching):
+
+```
+Global Defaults → Upstream Defaults → Tool-Specific
+(lowest priority)                     (highest priority)
+```
+
+**Why three levels?**
+- **Eliminate repetition** - Configure once per upstream instead of per tool
+- **Better organization** - Settings grouped with relevant servers
+- **Flexible overrides** - Override at any level when needed
+
+**Example:**
+```json
+{
+  "defaults": {
+    "compression": { "enabled": true, "tokenThreshold": 1000 }
+  },
+  "upstreams": [{
+    "id": "api-server",
+    "defaults": {
+      "compression": { "tokenThreshold": 500 }
+    },
+    "tools": {
+      "search": {
+        "compression": { "customInstructions": "Focus on IDs" }
+      }
+    }
+  }]
+}
+```
+
+**Resolution for `api-server__search`:**
+- `enabled`: `true` (global)
+- `tokenThreshold`: `500` (upstream)
+- `customInstructions`: `"Focus on IDs"` (tool)
+
+**See also:** [Migration Guide from v0.3.x](https://github.com/samteezy/mcp-context-proxy/issues/13#issuecomment-3710637305)
+
 ### Downstream (Client-facing)
 
 | Field | Type | Description |
@@ -198,23 +251,51 @@ The dashboard uses these API endpoints, which are also available for programmati
 
 ### Compression
 
+The `compression` config section contains **infrastructure settings** for the compression LLM (where to send requests, what model to use):
+
 | Field | Type | Description |
 |-------|------|-------------|
 | `baseUrl` | `string` | OpenAI-compatible API base URL |
 | `apiKey` | `string` | API key (optional for local models) |
 | `model` | `string` | Model identifier |
-| `defaultPolicy` | `object` | Default compression policy for all tools |
-| `goalAware` | `boolean` | Inject `_mcpcp_goal` field into tool schemas (default: true) |
 | `bypassEnabled` | `boolean` | Inject `_mcpcp_bypass` field to allow skipping compression (default: false) |
 | `retryEscalation` | `object` | Auto-increase output on repeated tool calls (see below) |
 
-#### Default Policy
+**Compression policies** (when/how to compress) are configured via the three-level hierarchy:
+
+```json
+{
+  "defaults": {
+    "compression": {
+      "enabled": true,
+      "tokenThreshold": 1000,
+      "maxOutputTokens": 500,
+      "goalAware": true
+    }
+  },
+  "upstreams": [{
+    "id": "api-server",
+    "defaults": {
+      "compression": { "tokenThreshold": 500 }
+    },
+    "tools": {
+      "search": {
+        "compression": { "customInstructions": "Focus on IDs" }
+      }
+    }
+  }]
+}
+```
+
+#### Compression Policy Fields
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `enabled` | `boolean` | Enable/disable compression globally (default: true) |
+| `enabled` | `boolean` | Enable/disable compression (default: true) |
 | `tokenThreshold` | `number` | Minimum tokens to trigger compression (default: 1000) |
 | `maxOutputTokens` | `number` | Maximum tokens in compressed output |
+| `goalAware` | `boolean` | Inject `_mcpcp_goal` field into tool schemas (default: true) |
+| `customInstructions` | `string` | Additional instructions for compression LLM |
 
 #### Retry Escalation
 
@@ -251,37 +332,47 @@ When escalation is applied:
 
 When `bypassEnabled: true`, a `_mcpcp_bypass` field is added to all tool schemas. Clients can set this to `true` to skip compression entirely and receive the full uncompressed response. This is useful when the compressed response is missing critical information.
 
-#### Per-Tool Policies
+#### Upstream and Tool-Level Overrides
 
-You can override the default compression policy for specific tools within each upstream's `tools` configuration. Use the tool's **original name** (not namespaced):
+**Disable compression for all tools from a specific upstream:**
 
 ```json
 {
-  "upstreams": [
-    {
-      "id": "my-server",
-      "name": "My Server",
-      "transport": "stdio",
-      "command": "npx",
-      "args": ["-y", "some-mcp-server"],
-      "tools": {
-        "read_file": {
-          "compression": { "enabled": false }
-        },
-        "search": {
-          "compression": {
-            "tokenThreshold": 200,
-            "maxOutputTokens": 100,
-            "customInstructions": "Focus on error messages and stack traces. Preserve file paths."
-          }
-        }
-      }
+  "upstreams": [{
+    "id": "filesystem",
+    "defaults": {
+      "compression": { "enabled": false }
     }
-  ]
+  }]
 }
 ```
 
-Each tool's `compression` object can override: `enabled`, `tokenThreshold`, `maxOutputTokens`, `customInstructions`
+**Override for specific tools:**
+
+```json
+{
+  "upstreams": [{
+    "id": "my-server",
+    "defaults": {
+      "compression": { "tokenThreshold": 500 }
+    },
+    "tools": {
+      "read_file": {
+        "compression": { "enabled": false }
+      },
+      "search": {
+        "compression": {
+          "tokenThreshold": 200,
+          "maxOutputTokens": 100,
+          "customInstructions": "Focus on error messages and stack traces."
+        }
+      }
+    }
+  }]
+}
+```
+
+Tool names are **original names** (not namespaced). Available overrides: `enabled`, `tokenThreshold`, `maxOutputTokens`, `goalAware`, `customInstructions`
 
 #### Custom Instructions
 
@@ -373,44 +464,48 @@ For tools with problematic default parameters, you can hide them from the client
 
 ### Cache
 
-Caches compressed tool responses to avoid redundant LLM compression calls. Identical requests return cached results instantly (~100x faster).
+The `cache` config section contains **infrastructure settings** for the cache (max size, error caching):
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `maxEntries` | `number` | Maximum cache entries (default: 1000) |
+| `cacheErrors` | `boolean` | Cache error responses (default: true) |
+
+**Cache policies** (when/how long to cache) are configured via the three-level hierarchy:
+
+```json
+{
+  "defaults": {
+    "cache": {
+      "enabled": true,
+      "ttlSeconds": 300
+    }
+  },
+  "upstreams": [{
+    "id": "my-server",
+    "defaults": {
+      "cache": { "ttlSeconds": 600 }
+    },
+    "tools": {
+      "get_current_time": {
+        "cache": { "enabled": false }
+      },
+      "fetch_static_docs": {
+        "cache": { "ttlSeconds": 3600 }
+      }
+    }
+  }]
+}
+```
+
+Cache keys include: tool name, arguments, and normalized goal (lowercase, no punctuation). Requests with semantically similar goals like "Find the API endpoints!" and "find the api endpoints" will share cached results.
+
+**Cache Policy Fields:**
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `enabled` | `boolean` | Enable/disable caching (default: true) |
 | `ttlSeconds` | `number` | Cache entry TTL in seconds (default: 300) |
-| `maxEntries` | `number` | Maximum cache entries (default: 1000) |
-| `cacheErrors` | `boolean` | Cache error responses (default: true) |
-
-Cache keys include: tool name, arguments, and normalized goal (lowercase, no punctuation). This means requests with semantically similar goals like "Find the API endpoints!" and "find the api endpoints" will share cached results.
-
-#### Per-Tool Cache TTL
-
-You can override the cache TTL for specific tools, or disable caching entirely for time-sensitive tools:
-
-```json
-{
-  "upstreams": [
-    {
-      "id": "my-server",
-      "tools": {
-        "get_current_time": {
-          "cacheTtl": 0
-        },
-        "fetch_static_docs": {
-          "cacheTtl": 3600
-        }
-      }
-    }
-  ]
-}
-```
-
-| Value | Behavior |
-|-------|----------|
-| `0` | Disable caching for this tool |
-| `undefined` | Use global `cache.ttlSeconds` |
-| `N` | Use N seconds TTL for this tool |
 
 ### Tool Configuration
 
@@ -421,8 +516,10 @@ Configure individual tools within each upstream's `tools` object. Each key is th
 | `hidden` | `boolean` | Hide this tool from clients (default: false) |
 | `compression` | `object` | Per-tool compression policy overrides |
 | `masking` | `object` | Per-tool PII masking policy overrides |
+| `cache` | `object` | Per-tool cache policy overrides |
 | `overwriteDescription` | `string` | Replace the tool's description |
-| `cacheTtl` | `number` | Cache TTL in seconds (0 = no caching, undefined = use global) |
+| `hideParameters` | `string[]` | Parameters to hide from client schema |
+| `parameterOverrides` | `object` | Server-side parameter injection |
 
 #### Hiding Tools
 
@@ -492,13 +589,42 @@ Client sends:    email=alice@example.com
 Client receives: original values restored
 ```
 
+The `masking` config section contains **infrastructure settings** and a **master switch**:
+
 | Field | Type | Description |
 |-------|------|-------------|
-| `enabled` | `boolean` | Enable/disable PII masking globally (default: false) |
-| `defaultPolicy` | `object` | Default masking policy for all tools |
+| `enabled` | `boolean` | **Master switch** - must be true for any masking to work (default: false) |
 | `llmConfig` | `object` | Optional LLM config for fallback detection |
 
-Per-tool masking overrides are configured in each upstream's `tools` object (see [Tool Configuration](#tool-configuration)).
+**Masking policies** are configured via the three-level hierarchy:
+
+```json
+{
+  "masking": {
+    "enabled": true
+  },
+  "defaults": {
+    "masking": {
+      "enabled": true,
+      "piiTypes": ["email", "ssn", "phone"],
+      "llmFallback": false
+    }
+  },
+  "upstreams": [{
+    "id": "database",
+    "defaults": {
+      "masking": { "piiTypes": ["email", "ssn", "credit_card"] }
+    },
+    "tools": {
+      "query": {
+        "masking": { "llmFallback": true }
+      }
+    }
+  }]
+}
+```
+
+**Important:** The top-level `masking.enabled` acts as a master switch. Even if policies enable masking, it won't run unless the master switch is on.
 
 #### Masking Policy
 
@@ -531,40 +657,39 @@ Placeholders are numbered sequentially per type (e.g., `[EMAIL_1]`, `[EMAIL_2]`)
 
 ```json
 {
-  "upstreams": [
-    {
-      "id": "database",
-      "name": "Database Server",
-      "transport": "stdio",
-      "command": "npx",
-      "args": ["-y", "mcp-server-database"],
-      "tools": {
-        "query": {
-          "masking": {
-            "enabled": true,
-            "llmFallback": true,
-            "customPatterns": {
-              "employee_id": {
-                "regex": "EMP[0-9]{6}",
-                "replacement": "[EMPLOYEE_ID_REDACTED]"
-              }
-            }
-          }
-        },
-        "internal_tool": {
-          "masking": { "enabled": false }
-        }
-      }
-    }
-  ],
-  "masking": {
-    "enabled": true,
-    "defaultPolicy": {
+  "defaults": {
+    "masking": {
       "enabled": true,
       "piiTypes": ["email", "ssn", "phone", "credit_card", "ip_address"],
       "llmFallback": false,
       "llmFallbackThreshold": "low"
-    },
+    }
+  },
+  "upstreams": [{
+    "id": "database",
+    "name": "Database Server",
+    "transport": "stdio",
+    "command": "npx",
+    "args": ["-y", "mcp-server-database"],
+    "tools": {
+      "query": {
+        "masking": {
+          "llmFallback": true,
+          "customPatterns": {
+            "employee_id": {
+              "regex": "EMP[0-9]{6}",
+              "replacement": "[EMPLOYEE_ID_REDACTED]"
+            }
+          }
+        }
+      },
+      "internal_tool": {
+        "masking": { "enabled": false }
+      }
+    }
+  }],
+  "masking": {
+    "enabled": true,
     "llmConfig": {
       "baseUrl": "http://localhost:8080/v1",
       "model": "your-model"
